@@ -8,6 +8,7 @@ from ui.admin.reportes_view import ReportesView
 from ui.admin.usuarios_view import UsuariosView
 from ui.components.sidebar import Sidebar
 from ui.login_view import LoginView
+from ui.recetas.recetas_view import RecetasView
 from ui.ventas.venta_view import VentaView
 
 ADMIN_NAV_ITEMS = [
@@ -20,7 +21,6 @@ ADMIN_NAV_ITEMS = [
 
 PLACEHOLDER_FASES = {
     "dashboard": "Fase 6",
-    "recetas": "Fase 7",
 }
 
 
@@ -86,6 +86,10 @@ class App(ctk.CTk):
             )
         elif key == "reportes":
             ReportesView(self._content_frame).pack(fill="both", expand=True)
+        elif key == "recetas":
+            RecetasView(self._content_frame, current_user=self.current_user, puede_editar=True).pack(
+                fill="both", expand=True
+            )
         else:
             self._placeholder(key)
 
@@ -121,7 +125,7 @@ class App(ctk.CTk):
 
         TicketPreviewDialog(self, imp.datos_ticket_prueba())
 
-    def _show_vendedor_shell(self):
+    def _show_vendedor_shell(self, seccion="venta"):
         self._clear()
         container = ctk.CTkFrame(self, fg_color=theme.BG_PAGE)
         container.pack(fill="both", expand=True)
@@ -134,6 +138,23 @@ class App(ctk.CTk):
             header, text=f"Hola, {self.current_user.nombre}",
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
         ).pack(side="left", padx=24)
+
+        nav = ctk.CTkFrame(header, fg_color="transparent")
+        nav.pack(side="left", padx=16)
+
+        activo = {"fg_color": theme.PINK, "text_color": theme.TEXT_ON_ACCENT, "hover_color": theme.PINK_HOVER}
+        inactivo = {"fg_color": theme.BG_INPUT, "text_color": theme.TEXT_PRIMARY, "hover_color": theme.BG_HOVER}
+
+        ctk.CTkButton(
+            nav, text="🛍 Punto de venta", corner_radius=theme.RADIUS_BUTTON,
+            command=lambda: self._show_vendedor_shell("venta"),
+            **(activo if seccion == "venta" else inactivo),
+        ).pack(side="left", padx=4)
+        ctk.CTkButton(
+            nav, text="📖 Recetas", corner_radius=theme.RADIUS_BUTTON,
+            command=lambda: self._show_vendedor_shell("recetas"),
+            **(activo if seccion == "recetas" else inactivo),
+        ).pack(side="left", padx=4)
 
         if self.current_user.rol == "admin":
             ctk.CTkButton(
@@ -151,4 +172,9 @@ class App(ctk.CTk):
         body = ctk.CTkFrame(container, fg_color=theme.BG_PAGE)
         body.pack(fill="both", expand=True, padx=24, pady=24)
 
-        VentaView(body, current_user=self.current_user).pack(fill="both", expand=True)
+        if seccion == "recetas":
+            # Solo lectura aquí siempre, sin importar el rol: la gestión
+            # completa de recetas vive en el sidebar del administrador.
+            RecetasView(body, current_user=self.current_user, puede_editar=False).pack(fill="both", expand=True)
+        else:
+            VentaView(body, current_user=self.current_user).pack(fill="both", expand=True)

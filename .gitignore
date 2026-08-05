@@ -18,5 +18,8 @@ data/*.db-shm
 # Variables de entorno / secretos
 .env
 
+# Miniaturas de recetas descargadas automáticamente de YouTube (se regeneran solas)
+assets/recetas_thumbnails/
+
 # Sistema
 .DS_Store
