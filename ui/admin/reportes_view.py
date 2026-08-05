@@ -38,12 +38,15 @@ class ReportesView(ctk.CTkFrame):
         filtros = ctk.CTkFrame(header, fg_color="transparent")
         filtros.pack(side="right")
 
+        self.botones_rango = {}
         for etiqueta, dias in [("Hoy", 0), ("7 días", 6), ("30 días", 29)]:
-            ctk.CTkButton(
+            boton = ctk.CTkButton(
                 filtros, text=etiqueta, width=70, height=32, corner_radius=theme.RADIUS_BUTTON,
-                fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+                fg_color=theme.BLUE_SOFT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
                 command=lambda d=dias: self._set_rango_rapido(d),
-            ).pack(side="left", padx=2)
+            )
+            boton.pack(side="left", padx=2)
+            self.botones_rango[dias] = boton
 
         ctk.CTkLabel(filtros, text="Desde").pack(side="left", padx=(12, 4))
         self.entry_desde = ctk.CTkEntry(filtros, width=100, fg_color=theme.BG_INPUT, border_width=0)
@@ -59,7 +62,27 @@ class ReportesView(ctk.CTkFrame):
             filtros, text="Aplicar", corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
             command=self._aplicar_filtro,
-        ).pack(side="left", padx=(8, 0))
+        ).pack(side="left", padx=(8, 4))
+
+        ctk.CTkButton(
+            filtros, text="✕", width=32, height=32, corner_radius=theme.RADIUS_BUTTON,
+            fg_color=theme.BG_INPUT, text_color=theme.TEXT_SECONDARY, hover_color=theme.BG_HOVER,
+            command=self._restablecer_filtro,
+        ).pack(side="left", padx=(4, 0))
+
+        self._resaltar_boton_activo(6)
+
+    def _resaltar_boton_activo(self, dias_activos):
+        """Marca en azul fuerte el botón de rango rápido que corresponde al
+        filtro actualmente aplicado (ninguno si el rango es manual)."""
+        for dias, boton in self.botones_rango.items():
+            if dias == dias_activos:
+                boton.configure(fg_color=theme.BLUE, text_color=theme.TEXT_ON_ACCENT, hover_color=theme.BLUE)
+            else:
+                boton.configure(fg_color=theme.BLUE_SOFT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE)
+
+    def _restablecer_filtro(self):
+        self._set_rango_rapido(6)
 
     def _set_rango_rapido(self, dias_atras):
         self.hasta = _hoy()
@@ -68,6 +91,7 @@ class ReportesView(ctk.CTkFrame):
         self.entry_desde.insert(0, self.desde.isoformat())
         self.entry_hasta.delete(0, "end")
         self.entry_hasta.insert(0, self.hasta.isoformat())
+        self._resaltar_boton_activo(dias_atras)
         self._render_body()
 
     def _aplicar_filtro(self):
@@ -77,6 +101,7 @@ class ReportesView(ctk.CTkFrame):
         except ValueError:
             return
         self.desde, self.hasta = nuevo_desde, nuevo_hasta
+        self._resaltar_boton_activo(None)
         self._render_body()
 
     def _render_body(self):
@@ -89,6 +114,10 @@ class ReportesView(ctk.CTkFrame):
         hasta_str = self.hasta.isoformat()
 
         resumen = rep.resumen_ventas(desde_str, hasta_str)
+        if resumen["num_ventas"] == 0:
+            self._estado_vacio(self.body)
+            return
+
         self._kpis(self.body, resumen)
 
         graficas = ctk.CTkFrame(self.body, fg_color="transparent")
@@ -108,6 +137,24 @@ class ReportesView(ctk.CTkFrame):
         self._lista_empleados(listas, rep.ventas_por_empleado(desde_str, hasta_str), columna=1)
 
         self._lista_consumo_extras(self.body, rep.consumo_insumos(desde_str, hasta_str, tipos=TIPOS_EXTRAS_BEBIDA))
+
+    def _estado_vacio(self, master):
+        card = ctk.CTkFrame(master, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, height=320)
+        card.pack(fill="both", expand=True)
+        card.pack_propagate(False)
+
+        contenido = ctk.CTkFrame(card, fg_color="transparent")
+        contenido.place(relx=0.5, rely=0.5, anchor="center")
+
+        ctk.CTkLabel(contenido, text="📭", font=(theme.FONT_FAMILY, 40)).pack(pady=(0, 12))
+        ctk.CTkLabel(
+            contenido, text="No hay ventas que mostrar en este rango de fechas",
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"), justify="center",
+        ).pack()
+        ctk.CTkLabel(
+            contenido, text="Prueba con otro rango, o registra una venta desde el punto de venta.",
+            text_color=theme.TEXT_SECONDARY, justify="center",
+        ).pack(pady=(4, 0))
 
     def _kpis(self, master, resumen):
         fila = ctk.CTkFrame(master, fg_color="transparent")
