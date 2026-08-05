@@ -23,8 +23,15 @@ class ReportesView(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent")
         self.desde = _hoy() - datetime.timedelta(days=6)
         self.hasta = _hoy()
-        self.body = None
         self._build_header()
+
+        # El área de contenido se crea UNA sola vez. CTkScrollableFrame no
+        # se limpia bien si se destruye y se vuelve a crear repetidamente
+        # (deja barras de scroll "fantasma" apiladas) — en cada refresco
+        # solo se vacían sus hijos, nunca el frame en sí.
+        self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.body.pack(fill="both", expand=True)
+
         self._render_body()
 
     def _build_header(self):
@@ -105,10 +112,8 @@ class ReportesView(ctk.CTkFrame):
         self._render_body()
 
     def _render_body(self):
-        if self.body is not None:
-            self.body.destroy()
-        self.body = ctk.CTkScrollableFrame(self, fg_color="transparent")
-        self.body.pack(fill="both", expand=True)
+        for widget in self.body.winfo_children():
+            widget.destroy()
 
         desde_str = self.desde.isoformat()
         hasta_str = self.hasta.isoformat()
