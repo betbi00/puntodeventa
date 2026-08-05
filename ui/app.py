@@ -4,6 +4,7 @@ import customtkinter as ctk
 from config import NEGOCIO_NOMBRE, VENTANA_ALTO, VENTANA_ANCHO
 from ui import theme
 from ui.admin.inventario_view import InventarioView
+from ui.admin.reportes_view import ReportesView
 from ui.admin.usuarios_view import UsuariosView
 from ui.components.sidebar import Sidebar
 from ui.login_view import LoginView
@@ -19,7 +20,6 @@ ADMIN_NAV_ITEMS = [
 
 PLACEHOLDER_FASES = {
     "dashboard": "Fase 6",
-    "reportes": "Fase 6",
     "recetas": "Fase 7",
 }
 
@@ -84,6 +84,8 @@ class App(ctk.CTk):
             InventarioView(self._content_frame, current_user=self.current_user).pack(
                 fill="both", expand=True
             )
+        elif key == "reportes":
+            ReportesView(self._content_frame).pack(fill="both", expand=True)
         else:
             self._placeholder(key)
 

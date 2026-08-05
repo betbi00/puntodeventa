@@ -3,8 +3,10 @@ diálogo de cobro (descuento, quién cobra y método de pago)."""
 import customtkinter as ctk
 
 from models import usuario as usuario_model
+from services import mercadopago_service as mp
 from services import venta_service as vs
 from ui import theme
+from ui.ventas.pago_tarjeta_view import PagoTarjetaDialog
 
 COLUMNAS_USUARIOS = 3
 
@@ -241,19 +243,44 @@ class CobroDialog(ctk.CTkToplevel):
         self.btn_efectivo.configure(**(activo if metodo == "efectivo" else inactivo))
         self.btn_tarjeta.configure(**(activo if metodo == "tarjeta" else inactivo))
         if metodo == "tarjeta":
-            self.label_nota.configure(
-                text="La conexión con la terminal Mercado Pago Point se activa en la Fase 5. "
-                     "Por ahora, la venta con tarjeta se registra directamente."
-            )
+            if not mp.esta_configurado():
+                nota = ("Mercado Pago aún no está configurado — se usará un simulador de "
+                        "terminal para poder probar el cobro con tarjeta.")
+            elif mp.modo_sandbox():
+                nota = "🧪 Modo sandbox: se usará tu cuenta de prueba de Mercado Pago."
+            else:
+                nota = "🔴 Modo producción: se cobrará de verdad en tu terminal Mercado Pago Point."
+            self.label_nota.configure(text=nota)
         else:
             self.label_nota.configure(text="")
 
     def _confirmar(self):
+        self.label_error.configure(text="")
         descuento_pct = self._obtener_descuento_pct()
+
+        if self.metodo_seleccionado == "tarjeta":
+            _, total = self.carrito.calcular_descuento_y_total(descuento_pct)
+            PagoTarjetaDialog(
+                self, total,
+                on_resultado=lambda *resultado: self._resultado_pago_tarjeta(descuento_pct, *resultado),
+            )
+            return
+
+        self._registrar_venta(descuento_pct, "efectivo")
+
+    def _resultado_pago_tarjeta(self, descuento_pct, aprobado, payment_id, status, mensaje):
+        if not aprobado:
+            # Pago rechazado, cancelado o con error: la venta NO se registra.
+            # El diálogo de cobro sigue abierto para reintentar o cambiar a efectivo.
+            self.label_error.configure(text=mensaje)
+            return
+        self._registrar_venta(descuento_pct, "tarjeta", mp_payment_id=payment_id, mp_status=status)
+
+    def _registrar_venta(self, descuento_pct, metodo_pago, mp_payment_id=None, mp_status=None):
         try:
             venta_id = vs.registrar_venta(
                 self.carrito, usuario_id=self.usuario_seleccionado_id, descuento_pct=descuento_pct,
-                metodo_pago=self.metodo_seleccionado,
+                metodo_pago=metodo_pago, mp_payment_id=mp_payment_id, mp_status=mp_status,
             )
         except vs.ValidationError as e:
             self.label_error.configure(text=str(e))

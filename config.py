@@ -1,5 +1,10 @@
 """Configuración global de la aplicación."""
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -27,3 +32,12 @@ TICKET_USB_VENDOR_ID = None
 TICKET_USB_PRODUCT_ID = None
 
 TICKET_MENSAJE_DESPEDIDA = "¡Gracias por tu compra! Vuelve pronto"
+
+# Mercado Pago Point (Fase 5) — credenciales en .env, NUNCA aquí ni en el
+# repositorio. Mientras falten, el cobro con tarjeta usa un simulador de
+# terminal para poder probar el flujo (ver services/mercadopago_service.py).
+# MP_ACCESS_TOKEN empieza con "TEST-" en modo sandbox, o "APP_USR-" en
+# producción. MP_TERMINAL_ID se obtiene con mercadopago_service.listar_terminales()
+# una vez que ya se tenga el Access Token.
+MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN")
+MP_TERMINAL_ID = os.environ.get("MP_TERMINAL_ID")
