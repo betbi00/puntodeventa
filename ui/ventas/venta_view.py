@@ -1,5 +1,6 @@
-"""Pantalla principal del punto de venta: catálogo (Crepas / Waffles /
-Bebidas) a la izquierda y el carrito de venta a la derecha."""
+"""Pantalla principal del punto de venta: catálogo (Crepas y Waffles en una
+sola pantalla dividida, y Bebidas aparte) a la izquierda, carrito a la
+derecha."""
 import customtkinter as ctk
 
 from services import inventario_service as inv
@@ -33,12 +34,10 @@ class VentaView(ctk.CTkFrame):
         )
         tabview.pack(fill="both", expand=True)
 
-        tab_crepas = tabview.add("Crepas")
-        tab_waffles = tabview.add("Waffles")
+        tab_productos = tabview.add("Crepas y Waffles")
         tab_bebidas = tabview.add("Bebidas")
 
-        self._build_tab_producto_base(tab_crepas, "Crepa")
-        self._build_tab_producto_base(tab_waffles, "Waffle")
+        self._build_tab_productos_base(tab_productos)
         BebidaCatalogo(tab_bebidas, on_agregar=self._agregar_item).pack(fill="both", expand=True)
 
         self.carrito_panel = CarritoPanel(
@@ -46,7 +45,31 @@ class VentaView(ctk.CTkFrame):
         )
         self.carrito_panel.pack(side="right", fill="y")
 
-    def _build_tab_producto_base(self, tab, nombre_producto):
+    def _build_tab_productos_base(self, tab):
+        """Una sola pantalla partida en dos mitades: Crepa a la izquierda,
+        Waffle a la derecha. Tocar cualquiera abre el mismo constructor de
+        siempre (ProductoBuilderView)."""
+        container = ctk.CTkFrame(tab, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=20, pady=20)
+        container.grid_columnconfigure(0, weight=1)
+        container.grid_columnconfigure(1, weight=1)
+        container.grid_rowconfigure(0, weight=1)
+
+        self._panel_producto_base(container, "Crepa", columna=0)
+        self._panel_producto_base(container, "Waffle", columna=1)
+
+    def _panel_producto_base(self, master, nombre_producto, columna):
+        lado = ctk.CTkFrame(master, fg_color="transparent")
+        lado.grid(row=0, column=columna, sticky="nsew", padx=12)
+
+        ctk.CTkLabel(
+            lado, text=nombre_producto.upper(), anchor="w", text_color=theme.TEXT_SECONDARY,
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
+
+        card = ctk.CTkFrame(lado, fg_color=theme.BG_PAGE, corner_radius=theme.RADIUS_CARD, cursor="hand2")
+        card.pack(fill="both", expand=True)
+
         producto = next(
             (p for p in inv.listar_productos_base(incluir_inactivos=False)
              if p.nombre.strip().lower() == nombre_producto.lower()),
@@ -54,29 +77,30 @@ class VentaView(ctk.CTkFrame):
         )
         if producto is None:
             ctk.CTkLabel(
-                tab, text=f'No hay un producto base configurado para "{nombre_producto}". '
+                card, text=f'No hay un producto base configurado para "{nombre_producto}". '
                           "Agrégalo en Inventario.",
-                text_color=theme.TEXT_SECONDARY, wraplength=400, justify="center",
-            ).pack(pady=60)
+                text_color=theme.TEXT_SECONDARY, wraplength=280, justify="center",
+            ).place(relx=0.5, rely=0.5, anchor="center")
             return
 
-        card = ctk.CTkFrame(tab, fg_color=theme.BG_PAGE, corner_radius=theme.RADIUS_CARD, cursor="hand2")
-        card.pack(padx=60, pady=60, fill="x")
+        contenido = ctk.CTkFrame(card, fg_color="transparent")
+        contenido.place(relx=0.5, rely=0.5, anchor="center")
 
         icono = ICONOS_PRODUCTO_BASE.get(nombre_producto.lower(), "🍽️")
-        ctk.CTkLabel(card, text=icono, font=(theme.FONT_FAMILY, 40)).pack(pady=(24, 8))
+        ctk.CTkLabel(contenido, text=icono, font=(theme.FONT_FAMILY, 56)).pack(pady=(0, 12))
         ctk.CTkLabel(
-            card, text=f"Armar {producto.nombre}", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
+            contenido, text=f"Armar {producto.nombre}", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
         ).pack()
         ctk.CTkLabel(
-            card, text=f"Desde ${producto.precio_base:.2f}", text_color=theme.TEXT_SECONDARY,
-        ).pack(pady=(0, 24))
+            contenido, text=f"Desde ${producto.precio_base:.2f}", text_color=theme.TEXT_SECONDARY,
+        ).pack(pady=(4, 0))
 
         def abrir(_evento=None, p=producto):
             ProductoBuilderView(self, p, on_agregar=self._agregar_item)
 
         card.bind("<Button-1>", abrir)
-        for child in card.winfo_children():
+        contenido.bind("<Button-1>", abrir)
+        for child in contenido.winfo_children():
             child.bind("<Button-1>", abrir)
 
     def _agregar_item(self, item):
