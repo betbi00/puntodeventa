@@ -112,6 +112,32 @@ def historial_movimientos(insumo_id: int):
     return movimiento_model.listar_por_insumo(insumo_id)
 
 
+def descontar_stock_por_venta(conn, insumo_id: int, cantidad_usada: float, usuario_id: int, venta_id: int) -> None:
+    """Descuenta stock por una venta ya en curso. A diferencia de
+    ajustar_stock, recibe una conexión abierta para insertarse en la misma
+    transacción que el resto de la venta (services/venta_service.py):
+    si algo falla después (p. ej. otro insumo sin stock suficiente), todo
+    se revierte junto, incluyendo este descuento.
+    """
+    row = conn.execute("SELECT * FROM insumos WHERE id = ?", (insumo_id,)).fetchone()
+    if not row:
+        raise ValidationError(f"El insumo #{insumo_id} no existe")
+    insumo = Insumo.from_row(row)
+
+    nuevo_stock = insumo.stock_actual - cantidad_usada
+    if nuevo_stock < 0:
+        raise ValidationError(
+            f'Stock insuficiente de "{insumo.nombre}": disponible {insumo.stock_actual:g}, '
+            f"se requieren {cantidad_usada:g}"
+        )
+
+    conn.execute("UPDATE insumos SET stock_actual = ? WHERE id = ?", (nuevo_stock, insumo_id))
+    movimiento_model.crear(
+        conn, insumo_id=insumo_id, tipo="venta", cantidad=-cantidad_usada,
+        stock_resultante=nuevo_stock, usuario_id=usuario_id, referencia_venta_id=venta_id,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Bebidas
 # ---------------------------------------------------------------------------

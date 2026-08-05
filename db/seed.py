@@ -46,9 +46,8 @@ def seed_insumos(conn: sqlite3.Connection) -> None:
         )
 
     extras_bebida = [
-        ("Boba clásica", "boba", 40, 10),
-        ("Perlas explosivas de mango", "perla_explosiva", 25, 8),
-        ("Perlas explosivas de fresa", "perla_explosiva", 25, 8),
+        ("Boba", "boba", 40, 10),
+        ("Perlas explosivas", "perla_explosiva", 25, 8),
     ]
     for nombre, tipo, stock, stock_min in extras_bebida:
         conn.execute(

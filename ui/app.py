@@ -7,6 +7,7 @@ from ui.admin.inventario_view import InventarioView
 from ui.admin.usuarios_view import UsuariosView
 from ui.components.sidebar import Sidebar
 from ui.login_view import LoginView
+from ui.ventas.venta_view import VentaView
 
 ADMIN_NAV_ITEMS = [
     {"key": "dashboard", "label": "Dashboard", "icon": "▦"},
@@ -128,10 +129,4 @@ class App(ctk.CTk):
         body = ctk.CTkFrame(container, fg_color=theme.BG_PAGE)
         body.pack(fill="both", expand=True, padx=24, pady=24)
 
-        card = ctk.CTkFrame(body, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
-        card.pack(fill="both", expand=True)
-        ctk.CTkLabel(
-            card, text="Punto de venta\n\nEste módulo se construye en la Fase 3.",
-            font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE), text_color=theme.TEXT_SECONDARY,
-            justify="center",
-        ).place(relx=0.5, rely=0.5, anchor="center")
+        VentaView(body, current_user=self.current_user).pack(fill="both", expand=True)
