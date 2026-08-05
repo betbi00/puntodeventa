@@ -91,13 +91,33 @@ class App(ctk.CTk):
         fase = PLACEHOLDER_FASES.get(key, "una próxima fase")
         card = ctk.CTkFrame(self._content_frame, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
         card.pack(fill="both", expand=True)
+
+        contenido = ctk.CTkFrame(card, fg_color="transparent")
+        contenido.place(relx=0.5, rely=0.5, anchor="center")
+
         ctk.CTkLabel(
-            card,
+            contenido,
             text=f"{key.capitalize()}\n\nEste módulo se construye en la {fase}.",
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE),
             text_color=theme.TEXT_SECONDARY,
             justify="center",
-        ).place(relx=0.5, rely=0.5, anchor="center")
+        ).pack()
+
+        if key == "dashboard":
+            # Temporal: hasta que la Fase 6 tenga su propio dashboard, este
+            # botón permite probar el formato del ticket con datos de
+            # ejemplo sin necesidad de una venta real.
+            ctk.CTkButton(
+                contenido, text="🖨️  Probar impresión de ticket (datos de ejemplo)",
+                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
+                text_color=theme.TEXT_ON_ACCENT, command=self._probar_impresion,
+            ).pack(pady=(16, 0))
+
+    def _probar_impresion(self):
+        from services import impresion_service as imp
+        from ui.components.ticket_preview_view import TicketPreviewDialog
+
+        TicketPreviewDialog(self, imp.datos_ticket_prueba())
 
     def _show_vendedor_shell(self):
         self._clear()

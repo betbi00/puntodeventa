@@ -3,9 +3,11 @@ sola pantalla dividida, y Bebidas aparte) a la izquierda, carrito a la
 derecha."""
 import customtkinter as ctk
 
+from services import impresion_service as imp
 from services import inventario_service as inv
 from services import venta_service as vs
 from ui import theme
+from ui.components.ticket_preview_view import TicketPreviewDialog
 from ui.ventas.bebida_view import BebidaCatalogo
 from ui.ventas.carrito_cobro_view import CarritoPanel
 from ui.ventas.producto_builder_view import ProductoBuilderView
@@ -108,28 +110,9 @@ class VentaView(ctk.CTkFrame):
         self.carrito_panel.refrescar()
 
     def _venta_completada(self, venta_id):
-        VentaConfirmadaDialog(self, venta_id)
-
-
-class VentaConfirmadaDialog(ctk.CTkToplevel):
-    def __init__(self, master, venta_id):
-        super().__init__(master)
-        self.title("Venta registrada")
-        self.geometry("340x240")
-        self.configure(fg_color=theme.BG_PAGE)
-        self.resizable(False, False)
-        self.grab_set()
-
-        ctk.CTkLabel(self, text="✅", font=(theme.FONT_FAMILY, 40)).pack(pady=(32, 8))
-        ctk.CTkLabel(
-            self, text=f"Venta #{venta_id} registrada correctamente",
-            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"), wraplength=280, justify="center",
-        ).pack(padx=24)
-        ctk.CTkLabel(
-            self, text="El ticket se imprimirá automáticamente a partir de la Fase 4.",
-            text_color=theme.TEXT_SECONDARY, wraplength=280, justify="center",
-        ).pack(padx=24, pady=(8, 16))
-        ctk.CTkButton(
-            self, text="Cerrar", fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
-            text_color=theme.TEXT_ON_ACCENT, corner_radius=theme.RADIUS_BUTTON, command=self.destroy,
-        ).pack(fill="x", padx=24, pady=(0, 24))
+        """La venta ya quedó registrada en la base de datos en este punto.
+        Intentamos imprimir el ticket automáticamente; si la impresora
+        falla o no está conectada, el diálogo lo avisa y ofrece
+        reintentar, pero la venta sigue registrada de cualquier forma."""
+        datos_ticket = imp.datos_ticket_de_venta(venta_id)
+        TicketPreviewDialog(self, datos_ticket, venta_id=venta_id, intentar_imprimir_automaticamente=True)

@@ -1,3 +1,7 @@
 # Fase 1: login y roles
 customtkinter==5.2.2
 bcrypt==4.2.0
+
+# Fase 4: impresión de tickets (Epson TM-T20III por USB)
+# Requiere también la librería de sistema libusb (`brew install libusb` en Mac).
+python-escpos==3.1
