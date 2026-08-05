@@ -75,6 +75,21 @@ CREATE TABLE IF NOT EXISTS detalle_venta_insumos (
     cantidad_usada      REAL NOT NULL DEFAULT 1
 );
 
+-- Bitácora de movimientos de stock: entradas (restock), ajustes manuales
+-- (correcciones de conteo) y descuentos por venta. Todo cambio de stock_actual
+-- en insumos debe pasar por aquí para dejar rastro de quién, cuándo y por qué.
+CREATE TABLE IF NOT EXISTS movimientos_inventario (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    insumo_id           INTEGER NOT NULL REFERENCES insumos(id),
+    tipo                TEXT NOT NULL CHECK (tipo IN ('entrada', 'ajuste', 'venta')),
+    cantidad            REAL NOT NULL,
+    stock_resultante    REAL NOT NULL,
+    motivo              TEXT,
+    usuario_id          INTEGER NOT NULL REFERENCES usuarios(id),
+    referencia_venta_id INTEGER REFERENCES ventas(id),
+    fecha_hora          TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS recetas (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_producto     TEXT NOT NULL,
@@ -90,3 +105,5 @@ CREATE INDEX IF NOT EXISTS idx_ventas_usuario ON ventas(usuario_id);
 CREATE INDEX IF NOT EXISTS idx_detalle_venta_venta ON detalle_venta(venta_id);
 CREATE INDEX IF NOT EXISTS idx_detalle_insumos_detalle ON detalle_venta_insumos(detalle_venta_id);
 CREATE INDEX IF NOT EXISTS idx_detalle_insumos_insumo ON detalle_venta_insumos(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_movimientos_insumo ON movimientos_inventario(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_movimientos_fecha ON movimientos_inventario(fecha_hora);
