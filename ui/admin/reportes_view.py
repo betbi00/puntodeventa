@@ -3,11 +3,13 @@ rango de fechas, productos más vendidos, ingresos por método de pago,
 ventas por empleado y consumo de boba/perlas explosivas, con gráficas
 embebidas (matplotlib)."""
 import datetime
+from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
+from services import exportacion_service as export_svc
 from services import reporte_service as rep
 from ui import theme
 
@@ -35,12 +37,21 @@ class ReportesView(ctk.CTkFrame):
         self._render_body()
 
     def _build_header(self):
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", pady=(0, 16))
+        fila_titulo = ctk.CTkFrame(self, fg_color="transparent")
+        fila_titulo.pack(fill="x", pady=(0, 12))
 
         ctk.CTkLabel(
-            header, text="Reportes", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
+            fila_titulo, text="Reportes", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
         ).pack(side="left")
+
+        ctk.CTkButton(
+            fila_titulo, text="📊 Exportar a Excel", corner_radius=theme.RADIUS_BUTTON,
+            fg_color=theme.BLUE, hover_color=theme.BLUE_HOVER, text_color=theme.TEXT_ON_ACCENT,
+            command=self._exportar_excel,
+        ).pack(side="right")
+
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", pady=(0, 16))
 
         filtros = ctk.CTkFrame(header, fg_color="transparent")
         filtros.pack(side="right")
@@ -110,6 +121,21 @@ class ReportesView(ctk.CTkFrame):
         self.desde, self.hasta = nuevo_desde, nuevo_hasta
         self._resaltar_boton_activo(None)
         self._render_body()
+
+    def _exportar_excel(self):
+        nombre_sugerido = f"reporte_{self.desde.isoformat()}_a_{self.hasta.isoformat()}.xlsx"
+        ruta = filedialog.asksaveasfilename(
+            parent=self, title="Guardar reporte como", defaultextension=".xlsx",
+            initialfile=nombre_sugerido, filetypes=[("Excel", "*.xlsx")],
+        )
+        if not ruta:
+            return
+        try:
+            export_svc.exportar_excel(self.desde.isoformat(), self.hasta.isoformat(), ruta)
+        except Exception as e:
+            messagebox.showerror("Error al exportar", f"No se pudo generar el archivo:\n{e}", parent=self)
+            return
+        messagebox.showinfo("Reporte exportado", f"Se guardó correctamente en:\n{ruta}", parent=self)
 
     def _render_body(self):
         for widget in self.body.winfo_children():

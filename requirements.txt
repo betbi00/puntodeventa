@@ -12,3 +12,4 @@ requests==2.34.2
 
 # Fase 6: reportes y gráficas
 matplotlib==3.11.1
+openpyxl==3.1.5
