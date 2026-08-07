@@ -10,7 +10,8 @@ TIPOS_VALIDOS = ("entrada", "ajuste", "venta")
 @dataclass
 class MovimientoInventario:
     id: int
-    insumo_id: int
+    insumo_id: Optional[int]
+    bebida_id: Optional[int]
     tipo: str
     cantidad: float
     stock_resultante: float
@@ -24,6 +25,7 @@ class MovimientoInventario:
         return MovimientoInventario(
             id=row["id"],
             insumo_id=row["insumo_id"],
+            bebida_id=row["bebida_id"],
             tipo=row["tipo"],
             cantidad=row["cantidad"],
             stock_resultante=row["stock_resultante"],
@@ -35,16 +37,19 @@ class MovimientoInventario:
 
 
 def crear(
-    conn, insumo_id: int, tipo: str, cantidad: float, stock_resultante: float,
-    usuario_id: int, motivo: Optional[str] = None, referencia_venta_id: Optional[int] = None,
+    conn, tipo: str, cantidad: float, stock_resultante: float, usuario_id: int,
+    insumo_id: Optional[int] = None, bebida_id: Optional[int] = None,
+    motivo: Optional[str] = None, referencia_venta_id: Optional[int] = None,
 ) -> None:
     """Recibe una conexión abierta para poder insertarse en la misma
-    transacción que el UPDATE de stock_actual en insumos."""
+    transacción que el UPDATE de stock_actual en insumos o bebidas. Debe
+    venir exactamente uno de insumo_id/bebida_id (lo exige también el
+    CHECK de la tabla)."""
     conn.execute(
         """INSERT INTO movimientos_inventario
-           (insumo_id, tipo, cantidad, stock_resultante, motivo, usuario_id, referencia_venta_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (insumo_id, tipo, cantidad, stock_resultante, motivo, usuario_id, referencia_venta_id),
+           (insumo_id, bebida_id, tipo, cantidad, stock_resultante, motivo, usuario_id, referencia_venta_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (insumo_id, bebida_id, tipo, cantidad, stock_resultante, motivo, usuario_id, referencia_venta_id),
     )
 
 
@@ -53,6 +58,15 @@ def listar_por_insumo(insumo_id: int) -> list[MovimientoInventario]:
         rows = conn.execute(
             "SELECT * FROM movimientos_inventario WHERE insumo_id = ? ORDER BY fecha_hora DESC",
             (insumo_id,),
+        ).fetchall()
+    return [MovimientoInventario.from_row(row) for row in rows]
+
+
+def listar_por_bebida(bebida_id: int) -> list[MovimientoInventario]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM movimientos_inventario WHERE bebida_id = ? ORDER BY fecha_hora DESC",
+            (bebida_id,),
         ).fetchall()
     return [MovimientoInventario.from_row(row) for row in rows]
 

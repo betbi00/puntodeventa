@@ -1,9 +1,15 @@
 """Impresión de tickets ESC/POS en la Epson TM-T20III (conexión USB).
 
+Además del ticket para el cliente, cada venta también imprime una
+"comanda": un segundo ticket sin precios ni totales, con lo que hay que
+preparar, para quien atiende — en la misma impresora, ya que no hay una
+impresora separada para la estación de preparación.
+
 Si la impresora falla o no está disponible, se levanta ImpresionError sin
 tocar la venta ya registrada en la base de datos — quien llame decide cómo
-avisar (la UI ofrece reintentar más tarde). Por eso imprimir_venta() nunca
-debe llamarse dentro de la misma transacción que registrar_venta().
+avisar (la UI ofrece reintentar más tarde). Por eso imprimir_venta() /
+imprimir_comanda_de_venta() nunca deben llamarse dentro de la misma
+transacción que registrar_venta().
 """
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -44,6 +50,20 @@ class TicketData:
     venta_id: Optional[int] = None
 
 
+@dataclass
+class LineaComandaItem:
+    nombre: str
+    insumos: list = field(default_factory=list)
+
+
+@dataclass
+class ComandaData:
+    fecha_hora: str
+    vendedor: str
+    items: list  # list[LineaComandaItem]
+    venta_id: Optional[int] = None
+
+
 def datos_ticket_prueba() -> TicketData:
     """Datos de ejemplo para probar el formato del ticket sin tocar la base
     de datos ni requerir una venta real."""
@@ -67,6 +87,19 @@ def datos_ticket_prueba() -> TicketData:
     )
 
 
+def datos_comanda_prueba() -> ComandaData:
+    """Datos de ejemplo para probar el formato de la comanda."""
+    return ComandaData(
+        fecha_hora=datetime.now().strftime("%d/%m/%Y %H:%M"),
+        vendedor="Vendedor Demo",
+        items=[
+            LineaComandaItem("Crepa", ["Nutella", "Fresa"]),
+            LineaComandaItem("Taro Milk Tea", ["Boba", "Perlas explosivas"]),
+        ],
+        venta_id=None,
+    )
+
+
 def datos_ticket_de_venta(venta_id: int) -> TicketData:
     venta = venta_model.get_completa(venta_id)
     if not venta:
@@ -84,10 +117,7 @@ def datos_ticket_de_venta(venta_id: int) -> TicketData:
         for detalle in venta.detalles
     ]
 
-    try:
-        fecha = datetime.strptime(venta.fecha_hora, "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y %H:%M")
-    except ValueError:
-        fecha = venta.fecha_hora
+    fecha = _formatear_fecha(venta.fecha_hora)
 
     return TicketData(
         encabezado=NEGOCIO_NOMBRE,
@@ -104,6 +134,34 @@ def datos_ticket_de_venta(venta_id: int) -> TicketData:
         despedida=TICKET_MENSAJE_DESPEDIDA,
         venta_id=venta.id,
     )
+
+
+def datos_comanda_de_venta(venta_id: int) -> ComandaData:
+    venta = venta_model.get_completa(venta_id)
+    if not venta:
+        raise ImpresionError(f"La venta #{venta_id} no existe")
+
+    vendedor = usuario_model.get_by_id(venta.usuario_id)
+    nombre_vendedor = vendedor.nombre if vendedor else f"Usuario #{venta.usuario_id}"
+
+    items = [
+        LineaComandaItem(nombre=detalle.nombre_producto, insumos=[i.nombre_insumo for i in detalle.insumos])
+        for detalle in venta.detalles
+    ]
+
+    return ComandaData(
+        fecha_hora=_formatear_fecha(venta.fecha_hora),
+        vendedor=nombre_vendedor,
+        items=items,
+        venta_id=venta.id,
+    )
+
+
+def _formatear_fecha(fecha_hora: str) -> str:
+    try:
+        return datetime.strptime(fecha_hora, "%Y-%m-%d %H:%M:%S").strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        return fecha_hora
 
 
 def _centrar(texto: str, ancho: int = ANCHO_TICKET) -> str:
@@ -153,15 +211,37 @@ def _lineas_cuerpo(datos: TicketData) -> list[str]:
     return lineas
 
 
+def _lineas_cuerpo_comanda(datos: ComandaData) -> list[str]:
+    lineas = [_centrar("COMANDA")]
+    lineas.append("=" * ANCHO_TICKET)
+    if datos.venta_id:
+        lineas.append(f"Venta #{datos.venta_id}")
+    lineas.append(f"Fecha: {datos.fecha_hora}")
+    lineas.append(f"Vendedor: {datos.vendedor}")
+    lineas.append("-" * ANCHO_TICKET)
+
+    for item in datos.items:
+        lineas.append(item.nombre.upper())
+        for insumo in item.insumos:
+            lineas.append(f"  + {insumo}")
+        lineas.append("")
+
+    lineas.append("=" * ANCHO_TICKET)
+    return lineas
+
+
 def renderizar_texto(datos: TicketData) -> str:
     """Vista previa en texto plano, igual a lo que se envía a imprimir."""
     return "\n".join(_lineas_cuerpo(datos))
 
 
-def imprimir(datos: TicketData) -> None:
-    """Envía el ticket a la impresora física. Lanza ImpresionError (sin
-    tocar la base de datos) si la impresora no está configurada, no se
-    encuentra, o falla a medio imprimir."""
+def renderizar_texto_comanda(datos: ComandaData) -> str:
+    return "\n".join(_lineas_cuerpo_comanda(datos))
+
+
+def _conectar_impresora():
+    """Devuelve una conexión Usb lista para usarse, o levanta ImpresionError
+    con un motivo claro. Compartido entre imprimir() e imprimir_comanda()."""
     if TICKET_USB_VENDOR_ID is None or TICKET_USB_PRODUCT_ID is None:
         raise ImpresionError(
             "La impresora todavía no está configurada (falta TICKET_USB_VENDOR_ID / "
@@ -176,9 +256,16 @@ def imprimir(datos: TicketData) -> None:
     try:
         # python-escpos no tiene un perfil "TM-T20III" exacto; "TM-T20II" usa
         # el mismo juego de comandos ESC/POS básicos y es compatible aquí.
-        impresora = Usb(TICKET_USB_VENDOR_ID, TICKET_USB_PRODUCT_ID, profile="TM-T20II")
+        return Usb(TICKET_USB_VENDOR_ID, TICKET_USB_PRODUCT_ID, profile="TM-T20II")
     except Exception as e:
         raise ImpresionError(f"No se pudo conectar con la impresora: {e}") from e
+
+
+def imprimir(datos: TicketData) -> None:
+    """Envía el ticket a la impresora física. Lanza ImpresionError (sin
+    tocar la base de datos) si la impresora no está configurada, no se
+    encuentra, o falla a medio imprimir."""
+    impresora = _conectar_impresora()
 
     try:
         impresora.set(align="center", bold=True, width=2, height=2)
@@ -228,6 +315,41 @@ def imprimir(datos: TicketData) -> None:
             pass
 
 
+def imprimir_comanda(datos: ComandaData) -> None:
+    """Imprime la comanda: sin precios ni totales, con el nombre de cada
+    producto en letra grande para que se lea fácil en la estación de
+    preparación."""
+    impresora = _conectar_impresora()
+
+    try:
+        impresora.set(align="center", bold=True, width=2, height=2)
+        impresora.text("COMANDA\n")
+        impresora.set(align="left", bold=False, width=1, height=1)
+        if datos.venta_id:
+            impresora.text(f"Venta #{datos.venta_id}\n")
+        impresora.text(f"Fecha: {datos.fecha_hora}\n")
+        impresora.text(f"Vendedor: {datos.vendedor}\n")
+        impresora.text("-" * ANCHO_TICKET + "\n")
+
+        for item in datos.items:
+            impresora.set(bold=True, width=2, height=2)
+            impresora.text(item.nombre.upper() + "\n")
+            impresora.set(bold=False, width=1, height=1)
+            for insumo in item.insumos:
+                impresora.text(f"  + {insumo}\n")
+            impresora.text("\n")
+
+        impresora.text("=" * ANCHO_TICKET + "\n")
+        impresora.cut()
+    except Exception as e:
+        raise ImpresionError(f"Falló la impresión de la comanda: {e}") from e
+    finally:
+        try:
+            impresora.close()
+        except Exception:
+            pass
+
+
 def imprimir_venta(venta_id: int) -> None:
     """Imprime el ticket de una venta ya registrada. Si tiene éxito, marca
     ticket_impreso=1; si falla, propaga ImpresionError sin marcar nada (para
@@ -235,3 +357,11 @@ def imprimir_venta(venta_id: int) -> None:
     datos = datos_ticket_de_venta(venta_id)
     imprimir(datos)
     venta_model.marcar_ticket_impreso(venta_id, True)
+
+
+def imprimir_comanda_de_venta(venta_id: int) -> None:
+    """Imprime la comanda de una venta ya registrada. Independiente de
+    imprimir_venta(): si el ticket falla pero la comanda no (o viceversa),
+    cada una se reintenta por su cuenta sin afectar a la otra."""
+    datos = datos_comanda_de_venta(venta_id)
+    imprimir_comanda(datos)

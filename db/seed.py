@@ -63,15 +63,18 @@ def seed_bebidas(conn: sqlite3.Connection) -> None:
         return
 
     bebidas = [
-        ("Taro Milk Tea", 65.0),
-        ("Matcha Latte", 70.0),
-        ("Mango Tea", 58.0),
-        ("Café Boba", 60.0),
-        ("Brown Sugar Milk", 62.0),
-        ("Chocolate Milk Tea", 63.0),
+        ("Taro Milk Tea", 65.0, 20, 5),
+        ("Matcha Latte", 70.0, 20, 5),
+        ("Mango Tea", 58.0, 20, 5),
+        ("Café Boba", 60.0, 20, 5),
+        ("Brown Sugar Milk", 62.0, 20, 5),
+        ("Chocolate Milk Tea", 63.0, 20, 5),
     ]
-    for nombre, precio in bebidas:
-        conn.execute("INSERT INTO bebidas (nombre, precio) VALUES (?, ?)", (nombre, precio))
+    for nombre, precio, stock, stock_min in bebidas:
+        conn.execute(
+            "INSERT INTO bebidas (nombre, precio, stock_actual, stock_minimo) VALUES (?, ?, ?, ?)",
+            (nombre, precio, stock, stock_min),
+        )
 
 
 def seed_productos_base(conn: sqlite3.Connection) -> None:

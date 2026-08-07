@@ -55,6 +55,7 @@ def _descargar_miniatura_automatica(video_id: str) -> Optional[str]:
 
 def crear_receta(
     nombre_producto: str, video_url: str, creado_por: int, miniatura_manual: Optional[str] = None,
+    ingredientes: Optional[str] = None, pasos: Optional[str] = None,
 ) -> Receta:
     nombre_producto = nombre_producto.strip()
     video_url = video_url.strip()
@@ -66,11 +67,15 @@ def crear_receta(
     video_id = extraer_video_id(video_url)
     miniatura_path = miniatura_manual or (_descargar_miniatura_automatica(video_id) if video_id else None)
 
-    return receta_model.crear(nombre_producto, video_url, video_id, miniatura_path, creado_por)
+    return receta_model.crear(
+        nombre_producto, video_url, video_id, miniatura_path,
+        (ingredientes or "").strip() or None, (pasos or "").strip() or None, creado_por,
+    )
 
 
 def actualizar_receta(
     receta_id: int, nombre_producto: str, video_url: str, miniatura_manual: Optional[str] = None,
+    ingredientes: Optional[str] = None, pasos: Optional[str] = None,
 ) -> None:
     nombre_producto = nombre_producto.strip()
     video_url = video_url.strip()
@@ -96,7 +101,10 @@ def actualizar_receta(
         # en una edición que no tenía nada que ver con el video.
         miniatura_path = receta_actual.miniatura_path
 
-    receta_model.actualizar(receta_id, nombre_producto, video_url, video_id, miniatura_path)
+    receta_model.actualizar(
+        receta_id, nombre_producto, video_url, video_id, miniatura_path,
+        (ingredientes or "").strip() or None, (pasos or "").strip() or None,
+    )
 
 
 def eliminar_receta(receta_id: int) -> None:

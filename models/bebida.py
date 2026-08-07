@@ -10,11 +10,21 @@ class Bebida:
     id: int
     nombre: str
     precio: float
+    stock_actual: float
+    stock_minimo: float
     activo: bool
 
     @staticmethod
     def from_row(row) -> "Bebida":
-        return Bebida(id=row["id"], nombre=row["nombre"], precio=row["precio"], activo=bool(row["activo"]))
+        return Bebida(
+            id=row["id"], nombre=row["nombre"], precio=row["precio"],
+            stock_actual=row["stock_actual"], stock_minimo=row["stock_minimo"],
+            activo=bool(row["activo"]),
+        )
+
+    @property
+    def bajo_stock_minimo(self) -> bool:
+        return self.stock_actual < self.stock_minimo
 
 
 def listar(incluir_inactivos: bool = True) -> list[Bebida]:
@@ -33,19 +43,21 @@ def get_by_id(bebida_id: int) -> Optional[Bebida]:
     return Bebida.from_row(row) if row else None
 
 
-def crear(nombre: str, precio: float) -> Bebida:
+def crear(nombre: str, precio: float, stock_inicial: float = 0, stock_minimo: float = 0) -> Bebida:
     with get_connection() as conn:
         cursor = conn.execute(
-            "INSERT INTO bebidas (nombre, precio) VALUES (?, ?)", (nombre, precio)
+            "INSERT INTO bebidas (nombre, precio, stock_actual, stock_minimo) VALUES (?, ?, ?, ?)",
+            (nombre, precio, stock_inicial, stock_minimo),
         )
         nuevo_id = cursor.lastrowid
     return get_by_id(nuevo_id)
 
 
-def actualizar(bebida_id: int, nombre: str, precio: float) -> None:
+def actualizar(bebida_id: int, nombre: str, precio: float, stock_minimo: float) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE bebidas SET nombre = ?, precio = ? WHERE id = ?", (nombre, precio, bebida_id)
+            "UPDATE bebidas SET nombre = ?, precio = ?, stock_minimo = ? WHERE id = ?",
+            (nombre, precio, stock_minimo, bebida_id),
         )
 
 

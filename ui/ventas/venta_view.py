@@ -111,8 +111,13 @@ class VentaView(ctk.CTkFrame):
 
     def _venta_completada(self, venta_id):
         """La venta ya quedó registrada en la base de datos en este punto.
-        Intentamos imprimir el ticket automáticamente; si la impresora
-        falla o no está conectada, el diálogo lo avisa y ofrece
-        reintentar, pero la venta sigue registrada de cualquier forma."""
+        Intentamos imprimir el ticket para el cliente y la comanda para
+        quien prepara, automáticamente; si la impresora falla o no está
+        conectada, el diálogo lo avisa y ofrece reintentar cada uno por
+        separado, pero la venta sigue registrada de cualquier forma."""
         datos_ticket = imp.datos_ticket_de_venta(venta_id)
-        TicketPreviewDialog(self, datos_ticket, venta_id=venta_id, intentar_imprimir_automaticamente=True)
+        datos_comanda = imp.datos_comanda_de_venta(venta_id)
+        TicketPreviewDialog(
+            self, datos_ticket, datos_comanda=datos_comanda, venta_id=venta_id,
+            intentar_imprimir_automaticamente=True,
+        )

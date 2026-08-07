@@ -39,7 +39,7 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
 
     # --- Modo real: Mercado Pago Point configurado ---
     def _build_real(self):
-        etiqueta_modo = "🧪 Modo sandbox" if mp.modo_sandbox() else "🔴 Modo producción"
+        etiqueta_modo = "Modo sandbox" if mp.modo_sandbox() else "Modo producción"
         ctk.CTkLabel(self, text=etiqueta_modo, text_color=theme.TEXT_SECONDARY).pack(pady=(20, 4))
         ctk.CTkLabel(
             self, text=f"Cobrando ${self.monto:.2f}", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
@@ -59,7 +59,7 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
             referencia = f"pos-{uuid.uuid4()}"
             orden = mp.crear_orden_pago(self.monto, referencia)
         except mp.MercadoPagoError as e:
-            self._finalizar(False, None, None, f"⚠️ {e}")
+            self._finalizar(False, None, None, str(e))
             return
 
         self._order_id = orden.get("id")
@@ -73,23 +73,23 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
         try:
             orden = mp.consultar_orden(self._order_id)
         except mp.MercadoPagoError as e:
-            self._finalizar(False, None, None, f"⚠️ {e}")
+            self._finalizar(False, None, None, str(e))
             return
 
         estado, payment_id = mp.extraer_resultado(orden)
         if estado in mp.ESTADOS_APROBADOS:
-            self._finalizar(True, payment_id, estado, "✅ Pago aprobado")
+            self._finalizar(True, payment_id, estado, "Pago aprobado")
         elif estado in mp.ESTADOS_RECHAZADOS:
-            self._finalizar(False, payment_id, estado, f"❌ Pago no completado ({estado})")
+            self._finalizar(False, payment_id, estado, f"Pago no completado ({estado})")
         elif self._intentos >= MAX_INTENTOS:
-            self._finalizar(False, None, "timeout", "⚠️ Se agotó el tiempo de espera de la terminal")
+            self._finalizar(False, None, "timeout", "Se agotó el tiempo de espera de la terminal")
         else:
             self.after(INTERVALO_POLL_MS, self._consultar_estado)
 
     # --- Modo simulador: todavía no hay credenciales de Mercado Pago ---
     def _build_simulador(self):
         ctk.CTkLabel(
-            self, text="🧪 MODO SIMULADO", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+            self, text="MODO SIMULADO", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
             text_color=theme.ERROR,
         ).pack(pady=(20, 4))
         ctk.CTkLabel(
@@ -106,13 +106,13 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
             self, text="Simular pago APROBADO", corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
             command=lambda: self._finalizar(
-                True, f"SIMULADO-{uuid.uuid4().hex[:8]}", "processed", "✅ Pago aprobado (simulado)"
+                True, f"SIMULADO-{uuid.uuid4().hex[:8]}", "processed", "Pago aprobado (simulado)"
             ),
         ).pack(fill="x", padx=20, pady=(0, 8))
         ctk.CTkButton(
             self, text="Simular pago RECHAZADO", corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda: self._finalizar(False, None, "failed", "❌ Pago rechazado (simulado)"),
+            command=lambda: self._finalizar(False, None, "failed", "Pago rechazado (simulado)"),
         ).pack(fill="x", padx=20, pady=(0, 8))
         ctk.CTkButton(
             self, text="Cancelar", fg_color="transparent", text_color=theme.TEXT_SECONDARY,

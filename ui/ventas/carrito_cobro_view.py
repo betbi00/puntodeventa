@@ -4,11 +4,13 @@ import customtkinter as ctk
 
 from models import usuario as usuario_model
 from services import mercadopago_service as mp
+from services import promocion_service as promos
 from services import venta_service as vs
 from ui import theme
 from ui.ventas.pago_tarjeta_view import PagoTarjetaDialog
 
 COLUMNAS_USUARIOS = 3
+DESCUENTOS_GENERALES = [10, 15, 20, 25]
 
 
 class CarritoPanel(ctk.CTkFrame):
@@ -25,7 +27,7 @@ class CarritoPanel(ctk.CTkFrame):
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=16, pady=(16, 8))
         ctk.CTkLabel(
-            header, text="🛍  Venta actual", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+            header, text="Venta actual", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
         ).pack(side="left")
         self.badge_count = ctk.CTkLabel(
             header, text="0", fg_color=theme.PINK_SOFT, text_color=theme.TEXT_PRIMARY,
@@ -119,10 +121,12 @@ class CobroDialog(ctk.CTkToplevel):
         self.on_completada = on_completada
         self.metodo_seleccionado = "efectivo"
         self.usuario_seleccionado_id = current_user.id
+        self.promocion_seleccionada_id = None
         self.botones_usuario = {}  # usuario_id -> CTkButton
+        self.botones_promocion = {}  # promocion_id -> CTkButton
 
         self.title("Confirmar cobro")
-        self.geometry("420x680")
+        self.geometry("420x820")
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -152,7 +156,7 @@ class CobroDialog(ctk.CTkToplevel):
         )
         self.entry_descuento.insert(0, "0")
         self.entry_descuento.pack(side="right")
-        self.entry_descuento.bind("<KeyRelease>", lambda _e: self._actualizar_totales())
+        self.entry_descuento.bind("<KeyRelease>", lambda _e: self._descuento_editado_manualmente())
 
         fila_descuento_monto = ctk.CTkFrame(resumen, fg_color="transparent")
         fila_descuento_monto.pack(fill="x", padx=16, pady=(0, 4))
@@ -167,6 +171,31 @@ class CobroDialog(ctk.CTkToplevel):
             total_row, text=f"${self.carrito.subtotal:.2f}", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
         )
         self.label_total.pack(side="right")
+
+        ctk.CTkLabel(self, text="Descuentos rápidos", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
+        generales_frame = ctk.CTkFrame(self, fg_color="transparent")
+        generales_frame.pack(fill="x", padx=24)
+        for pct in DESCUENTOS_GENERALES:
+            ctk.CTkButton(
+                generales_frame, text=f"{pct}%", width=56, height=32, corner_radius=theme.RADIUS_BUTTON,
+                fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+                command=lambda p=pct: self._elegir_descuento_general(p),
+            ).pack(side="left", padx=(0, 4))
+
+        promociones_activas = promos.listar_promociones(incluir_inactivas=False)
+        if promociones_activas:
+            ctk.CTkLabel(self, text="Promociones", anchor="w").pack(fill="x", padx=24, pady=(12, 4))
+            promos_frame = ctk.CTkFrame(self, fg_color="transparent")
+            promos_frame.pack(fill="x", padx=24)
+            for promo in promociones_activas:
+                boton = ctk.CTkButton(
+                    promos_frame, text=f"{promo.nombre} ({promo.porcentaje:g}%)", height=32,
+                    corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
+                    text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
+                    command=lambda p=promo: self._elegir_promocion(p),
+                )
+                boton.pack(side="left", padx=(0, 4), pady=2)
+                self.botones_promocion[promo.id] = boton
 
         ctk.CTkLabel(self, text="¿Quién cobra?", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
         usuarios_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -188,12 +217,12 @@ class CobroDialog(ctk.CTkToplevel):
         metodo_row = ctk.CTkFrame(self, fg_color="transparent")
         metodo_row.pack(fill="x", padx=24)
         self.btn_efectivo = ctk.CTkButton(
-            metodo_row, text="💵 Efectivo", corner_radius=theme.RADIUS_BUTTON,
+            metodo_row, text="Efectivo", corner_radius=theme.RADIUS_BUTTON,
             command=lambda: self._elegir_metodo("efectivo"),
         )
         self.btn_efectivo.pack(side="left", expand=True, fill="x", padx=(0, 4))
         self.btn_tarjeta = ctk.CTkButton(
-            metodo_row, text="💳 Tarjeta", corner_radius=theme.RADIUS_BUTTON,
+            metodo_row, text="Tarjeta", corner_radius=theme.RADIUS_BUTTON,
             command=lambda: self._elegir_metodo("tarjeta"),
         )
         self.btn_tarjeta.pack(side="left", expand=True, fill="x", padx=(4, 0))
@@ -228,6 +257,34 @@ class CobroDialog(ctk.CTkToplevel):
         self.label_descuento_monto.configure(text=f"-${descuento_monto:.2f}")
         self.label_total.configure(text=f"${total:.2f}")
 
+    def _descuento_editado_manualmente(self):
+        # Escribir directamente en el campo siempre se toma como un
+        # descuento manual: se suelta cualquier promoción seleccionada.
+        self._deseleccionar_promocion()
+        self._actualizar_totales()
+
+    def _elegir_descuento_general(self, pct):
+        self._deseleccionar_promocion()
+        self.entry_descuento.delete(0, "end")
+        self.entry_descuento.insert(0, str(pct))
+        self._actualizar_totales()
+
+    def _elegir_promocion(self, promo):
+        self.entry_descuento.delete(0, "end")
+        self.entry_descuento.insert(0, f"{promo.porcentaje:g}")
+        self.promocion_seleccionada_id = promo.id
+        for pid, boton in self.botones_promocion.items():
+            if pid == promo.id:
+                boton.configure(fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT)
+            else:
+                boton.configure(fg_color=theme.BLUE_SOFT, hover_color=theme.BLUE, text_color=theme.TEXT_PRIMARY)
+        self._actualizar_totales()
+
+    def _deseleccionar_promocion(self):
+        self.promocion_seleccionada_id = None
+        for boton in self.botones_promocion.values():
+            boton.configure(fg_color=theme.BLUE_SOFT, hover_color=theme.BLUE, text_color=theme.TEXT_PRIMARY)
+
     def _elegir_usuario(self, usuario_id):
         self.usuario_seleccionado_id = usuario_id
         for uid, boton in self.botones_usuario.items():
@@ -247,9 +304,9 @@ class CobroDialog(ctk.CTkToplevel):
                 nota = ("Mercado Pago aún no está configurado — se usará un simulador de "
                         "terminal para poder probar el cobro con tarjeta.")
             elif mp.modo_sandbox():
-                nota = "🧪 Modo sandbox: se usará tu cuenta de prueba de Mercado Pago."
+                nota = "Modo sandbox: se usará tu cuenta de prueba de Mercado Pago."
             else:
-                nota = "🔴 Modo producción: se cobrará de verdad en tu terminal Mercado Pago Point."
+                nota = "Modo producción: se cobrará de verdad en tu terminal Mercado Pago Point."
             self.label_nota.configure(text=nota)
         else:
             self.label_nota.configure(text="")
@@ -281,6 +338,7 @@ class CobroDialog(ctk.CTkToplevel):
             venta_id = vs.registrar_venta(
                 self.carrito, usuario_id=self.usuario_seleccionado_id, descuento_pct=descuento_pct,
                 metodo_pago=metodo_pago, mp_payment_id=mp_payment_id, mp_status=mp_status,
+                promocion_id=self.promocion_seleccionada_id,
             )
         except vs.ValidationError as e:
             self.label_error.configure(text=str(e))

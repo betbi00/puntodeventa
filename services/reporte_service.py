@@ -99,3 +99,64 @@ def consumo_insumos(desde: str, hasta: str, tipos: list[str] = None) -> list[dic
     with get_connection() as conn:
         rows = conn.execute(query, params).fetchall()
     return [{"nombre": r["nombre"], "cantidad": r["cantidad"]} for r in rows]
+
+
+def detalle_ventas(desde: str, hasta: str) -> list[dict]:
+    """Una fila por venta, con los productos vendidos concatenados —
+    para el detalle transaccional del Excel extendido."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT v.id AS venta_id, v.fecha_hora, u.nombre AS empleado,
+                      GROUP_CONCAT(dv.nombre_producto, ', ') AS productos,
+                      v.subtotal, v.descuento_pct, v.descuento_monto, v.total, v.metodo_pago
+               FROM ventas v
+               JOIN usuarios u ON u.id = v.usuario_id
+               LEFT JOIN detalle_venta dv ON dv.venta_id = v.id
+               WHERE v.estado = 'completada' AND date(v.fecha_hora) BETWEEN ? AND ?
+               GROUP BY v.id
+               ORDER BY v.fecha_hora""",
+            (desde, hasta),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def resumen_gastos(desde: str, hasta: str) -> float:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(monto), 0) AS total FROM gastos WHERE fecha BETWEEN ? AND ?",
+            (desde, hasta),
+        ).fetchone()
+    return row["total"]
+
+
+def gastos_por_categoria(desde: str, hasta: str) -> list[dict]:
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT categoria, SUM(monto) AS total
+               FROM gastos
+               WHERE fecha BETWEEN ? AND ?
+               GROUP BY categoria
+               ORDER BY total DESC""",
+            (desde, hasta),
+        ).fetchall()
+    return [{"categoria": r["categoria"], "total": r["total"]} for r in rows]
+
+
+def promociones_uso(desde: str, hasta: str) -> list[dict]:
+    """Cuántas veces se usó cada promoción con nombre, y cuánto descuento
+    acumuló, dentro del rango. Solo cuenta ventas que se cobraron con una
+    promoción (no descuentos manuales ni los botones "generales")."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT p.nombre AS nombre, COUNT(*) AS num_usos, SUM(v.descuento_monto) AS descuento_total
+               FROM ventas v
+               JOIN promociones p ON p.id = v.promocion_id
+               WHERE v.estado = 'completada' AND date(v.fecha_hora) BETWEEN ? AND ?
+               GROUP BY v.promocion_id
+               ORDER BY descuento_total DESC""",
+            (desde, hasta),
+        ).fetchall()
+    return [
+        {"nombre": r["nombre"], "num_usos": r["num_usos"], "descuento_total": r["descuento_total"]}
+        for r in rows
+    ]

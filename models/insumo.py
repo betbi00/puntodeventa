@@ -1,10 +1,10 @@
-"""Modelo y acceso a datos de insumos (ingredientes, boba, perlas explosivas)."""
+"""Modelo y acceso a datos de insumos (ingredientes, boba, perlas explosivas, desechables)."""
 from dataclasses import dataclass
 from typing import Optional
 
 from db.connection import get_connection
 
-TIPOS_VALIDOS = ("ingrediente", "boba", "perla_explosiva")
+TIPOS_VALIDOS = ("ingrediente", "boba", "perla_explosiva", "desechable")
 APLICA_A_VALIDOS = ("crepa", "waffle", "ambos")
 
 

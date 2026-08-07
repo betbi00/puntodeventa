@@ -146,26 +146,94 @@ def listar_bebidas(incluir_inactivos: bool = True):
     return bebida_model.listar(incluir_inactivos=incluir_inactivos)
 
 
-def crear_bebida(nombre: str, precio: float):
+def crear_bebida(nombre: str, precio: float, stock_inicial: float = 0, stock_minimo: float = 0):
     nombre = nombre.strip()
     if not nombre:
         raise ValidationError("El nombre es obligatorio")
     if precio <= 0:
         raise ValidationError("El precio debe ser mayor a cero")
-    return bebida_model.crear(nombre, precio)
+    if stock_inicial < 0 or stock_minimo < 0:
+        raise ValidationError("El stock no puede ser negativo")
+    return bebida_model.crear(nombre, precio, stock_inicial, stock_minimo)
 
 
-def actualizar_bebida(bebida_id: int, nombre: str, precio: float):
+def actualizar_bebida(bebida_id: int, nombre: str, precio: float, stock_minimo: float):
     nombre = nombre.strip()
     if not nombre:
         raise ValidationError("El nombre es obligatorio")
     if precio <= 0:
         raise ValidationError("El precio debe ser mayor a cero")
-    bebida_model.actualizar(bebida_id, nombre, precio)
+    if stock_minimo < 0:
+        raise ValidationError("El stock mínimo no puede ser negativo")
+    bebida_model.actualizar(bebida_id, nombre, precio, stock_minimo)
 
 
 def set_activo_bebida(bebida_id: int, activo: bool):
     bebida_model.set_activo(bebida_id, activo)
+
+
+def ajustar_stock_bebida(
+    bebida_id: int, tipo: str, cantidad: float, usuario_id: int, motivo: Optional[str] = None,
+):
+    """Equivalente a ajustar_stock pero para bebidas: mismo único punto de
+    entrada para cambiar stock_actual, con el UPDATE y el movimiento de
+    auditoría en la misma transacción."""
+    if tipo not in ("entrada", "ajuste"):
+        raise ValidationError(f"Tipo de movimiento inválido para un ajuste manual: {tipo}")
+    if cantidad == 0:
+        raise ValidationError("La cantidad del movimiento no puede ser cero")
+    if tipo == "entrada" and cantidad <= 0:
+        raise ValidationError("Una entrada debe ser una cantidad positiva")
+    if tipo == "ajuste" and not motivo:
+        raise ValidationError("El motivo es obligatorio para un ajuste manual de stock")
+
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM bebidas WHERE id = ?", (bebida_id,)).fetchone()
+        if not row:
+            raise ValidationError("La bebida no existe")
+        bebida = bebida_model.Bebida.from_row(row)
+
+        nuevo_stock = bebida.stock_actual + cantidad
+        if nuevo_stock < 0:
+            raise ValidationError(
+                f"El stock no puede quedar negativo (actual: {bebida.stock_actual}, "
+                f"movimiento: {cantidad})"
+            )
+
+        conn.execute("UPDATE bebidas SET stock_actual = ? WHERE id = ?", (nuevo_stock, bebida_id))
+        movimiento_model.crear(
+            conn, bebida_id=bebida_id, tipo=tipo, cantidad=cantidad,
+            stock_resultante=nuevo_stock, usuario_id=usuario_id, motivo=motivo,
+        )
+
+    return bebida_model.get_by_id(bebida_id)
+
+
+def historial_movimientos_bebida(bebida_id: int):
+    return movimiento_model.listar_por_bebida(bebida_id)
+
+
+def descontar_stock_bebida_por_venta(conn, bebida_id: int, cantidad_usada: float, usuario_id: int, venta_id: int) -> None:
+    """Descuenta stock de una bebida por una venta ya en curso. Igual que
+    descontar_stock_por_venta, recibe una conexión abierta para insertarse
+    en la misma transacción que el resto de la venta."""
+    row = conn.execute("SELECT * FROM bebidas WHERE id = ?", (bebida_id,)).fetchone()
+    if not row:
+        raise ValidationError(f"La bebida #{bebida_id} no existe")
+    bebida = bebida_model.Bebida.from_row(row)
+
+    nuevo_stock = bebida.stock_actual - cantidad_usada
+    if nuevo_stock < 0:
+        raise ValidationError(
+            f'Stock insuficiente de "{bebida.nombre}": disponible {bebida.stock_actual:g}, '
+            f"se requieren {cantidad_usada:g}"
+        )
+
+    conn.execute("UPDATE bebidas SET stock_actual = ? WHERE id = ?", (nuevo_stock, bebida_id))
+    movimiento_model.crear(
+        conn, bebida_id=bebida_id, tipo="venta", cantidad=-cantidad_usada,
+        stock_resultante=nuevo_stock, usuario_id=usuario_id, referencia_venta_id=venta_id,
+    )
 
 
 # ---------------------------------------------------------------------------

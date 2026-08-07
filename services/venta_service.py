@@ -86,6 +86,8 @@ def armar_bebida(bebida_id: int, extra_insumo_ids: Optional[list[int]] = None) -
     bebida = bebida_model.get_by_id(bebida_id)
     if not bebida or not bebida.activo:
         raise ValidationError("La bebida no existe o no está disponible")
+    if bebida.stock_actual <= 0:
+        raise ValidationError(f'"{bebida.nombre}" está agotada')
 
     extras_usados = []
     for insumo_id in (extra_insumo_ids or []):
@@ -139,11 +141,16 @@ class Carrito:
 
 def registrar_venta(
     carrito: Carrito, usuario_id: int, descuento_pct: float, metodo_pago: str,
-    mp_payment_id: Optional[str] = None, mp_status: Optional[str] = None,
+    mp_payment_id: Optional[str] = None, mp_status: Optional[str] = None, promocion_id: Optional[int] = None,
 ) -> int:
     """Registra la venta completa de forma atómica: si algún insumo no
     tiene stock suficiente, no se guarda nada (ni la venta ni ningún
     descuento de inventario) — todo o nada.
+
+    promocion_id es opcional: se guarda cuando el descuento vino de una
+    promoción con nombre (elegida con un botón en el cobro), para poder
+    reportar cuánto se usó cada una. Un descuento manual o uno de los
+    botones "generales" no llevan promocion_id.
     """
     if carrito.esta_vacio:
         raise ValidationError("El carrito está vacío")
@@ -158,9 +165,12 @@ def registrar_venta(
     with get_connection() as conn:
         cursor = conn.execute(
             """INSERT INTO ventas
-               (usuario_id, subtotal, descuento_pct, descuento_monto, total, metodo_pago, mp_payment_id, mp_status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (usuario_id, subtotal, descuento_pct, descuento_monto, total, metodo_pago, mp_payment_id, mp_status),
+               (usuario_id, subtotal, descuento_pct, descuento_monto, promocion_id, total, metodo_pago, mp_payment_id, mp_status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                usuario_id, subtotal, descuento_pct, descuento_monto, promocion_id,
+                total, metodo_pago, mp_payment_id, mp_status,
+            ),
         )
         venta_id = cursor.lastrowid
 
@@ -175,6 +185,14 @@ def registrar_venta(
                 ),
             )
             detalle_id = cursor_detalle.lastrowid
+
+            if item.tipo_producto == "bebida":
+                try:
+                    inventario_service.descontar_stock_bebida_por_venta(
+                        conn, item.bebida_id, item.cantidad, usuario_id, venta_id,
+                    )
+                except inventario_service.ValidationError as e:
+                    raise ValidationError(str(e)) from e
 
             for insumo_usado in item.insumos:
                 conn.execute(

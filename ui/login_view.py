@@ -22,32 +22,13 @@ class LoginView(ctk.CTkFrame):
 
         card = ctk.CTkFrame(
             self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD,
-            width=420, height=470,
+            width=420, height=400,
         )
-        card.place(relx=0.5, rely=0.56, anchor="center")
+        card.place(relx=0.5, rely=0.5, anchor="center")
         card.pack_propagate(False)
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
         inner.pack(fill="both", expand=True, padx=32, pady=32)
-
-        # Segmentado Vendedor/Administrador: es solo un hint visual, el rol
-        # real siempre se determina por el registro de usuarios en la BD.
-        segment = ctk.CTkFrame(inner, fg_color=theme.BG_INPUT, corner_radius=theme.RADIUS_BUTTON)
-        segment.pack(fill="x", pady=(0, 24))
-
-        self.btn_vendedor = ctk.CTkButton(
-            segment, text="Vendedor", corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BG_CARD, text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_CARD,
-            command=lambda: self._set_rol_hint("vendedor"),
-        )
-        self.btn_vendedor.pack(side="left", expand=True, fill="x", padx=4, pady=4)
-
-        self.btn_admin = ctk.CTkButton(
-            segment, text="Administrador", corner_radius=theme.RADIUS_BUTTON,
-            fg_color="transparent", text_color=theme.TEXT_SECONDARY, hover_color=theme.BG_INPUT,
-            command=lambda: self._set_rol_hint("admin"),
-        )
-        self.btn_admin.pack(side="left", expand=True, fill="x", padx=4, pady=4)
 
         ctk.CTkLabel(inner, text="Usuario", anchor="w").pack(fill="x")
         self.entry_usuario = ctk.CTkEntry(
@@ -79,14 +60,6 @@ class LoginView(ctk.CTkFrame):
         self.btn_submit.pack(fill="x", pady=(8, 0))
 
         self.entry_usuario.focus_set()
-
-    def _set_rol_hint(self, rol):
-        if rol == "vendedor":
-            self.btn_vendedor.configure(fg_color=theme.BG_CARD, text_color=theme.TEXT_PRIMARY)
-            self.btn_admin.configure(fg_color="transparent", text_color=theme.TEXT_SECONDARY)
-        else:
-            self.btn_admin.configure(fg_color=theme.BG_CARD, text_color=theme.TEXT_PRIMARY)
-            self.btn_vendedor.configure(fg_color="transparent", text_color=theme.TEXT_SECONDARY)
 
     def _submit(self):
         usuario = self.entry_usuario.get()

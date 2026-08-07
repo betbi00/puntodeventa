@@ -1,7 +1,12 @@
-"""Panel de reportes y minería de datos para el administrador: ventas por
-rango de fechas, productos más vendidos, ingresos por método de pago,
-ventas por empleado y consumo de boba/perlas explosivas, con gráficas
-embebidas (matplotlib)."""
+"""Dashboard del administrador: todo en un solo lugar — ventas por rango
+de fechas, ingresos, gastos y utilidad neta, gráficas, productos más
+vendidos, ventas por empleado, consumo de boba/perlas, exportar a PDF,
+y el panel para registrar gastos del negocio (renta, agua, luz, etc.).
+
+Antes esto estaba dividido entre "Dashboard" (fijo, hoy/semana) y
+"Reportes" (con filtro de fechas) — se fusionaron porque duplicaban casi
+todo. Ahora hay una sola pantalla y un solo filtro de fechas que controla
+todo lo que se ve."""
 import datetime
 from tkinter import filedialog, messagebox
 
@@ -9,23 +14,29 @@ import customtkinter as ctk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
-from services import exportacion_service as export_svc
+from services import pdf_service
 from services import reporte_service as rep
 from ui import theme
+from ui.admin.gastos_view import GastosPanel
+from ui.admin.promociones_view import PromocionesPanel
 
 TIPOS_EXTRAS_BEBIDA = ["boba", "perla_explosiva"]
+COLUMNAS_KPI = 3
 
 
 def _hoy():
     return datetime.date.today()
 
 
-class ReportesView(ctk.CTkFrame):
-    def __init__(self, master):
+class DashboardView(ctk.CTkFrame):
+    def __init__(self, master, current_user, on_probar_impresion=None):
         super().__init__(master, fg_color="transparent")
+        self.current_user = current_user
+        self.on_probar_impresion = on_probar_impresion
         self.desde = _hoy() - datetime.timedelta(days=6)
         self.hasta = _hoy()
         self._build_header()
+        self._build_footer()
 
         # El área de contenido se crea UNA sola vez. CTkScrollableFrame no
         # se limpia bien si se destruye y se vuelve a crear repetidamente
@@ -36,19 +47,35 @@ class ReportesView(ctk.CTkFrame):
 
         self._render_body()
 
+    def _build_footer(self):
+        """Barra fija abajo, siempre visible sin necesidad de bajar con el
+        scroll: probar impresión a la izquierda, exportar a PDF a la
+        derecha (en esquinas opuestas a propósito)."""
+        footer = ctk.CTkFrame(self, fg_color="transparent")
+        footer.pack(fill="x", side="bottom", pady=(12, 0))
+
+        if self.on_probar_impresion:
+            lado_izquierdo = ctk.CTkFrame(footer, fg_color="transparent")
+            lado_izquierdo.pack(side="left")
+            ctk.CTkButton(
+                lado_izquierdo, text="Probar impresión de ticket", corner_radius=theme.RADIUS_BUTTON,
+                fg_color=theme.BG_INPUT, hover_color=theme.BG_HOVER, text_color=theme.TEXT_PRIMARY,
+                command=self.on_probar_impresion,
+            ).pack(side="left")
+
+        ctk.CTkButton(
+            footer, text="Exportar a PDF", corner_radius=theme.RADIUS_BUTTON,
+            fg_color=theme.BLUE, hover_color=theme.BLUE_HOVER, text_color=theme.TEXT_ON_ACCENT,
+            command=self._exportar_pdf,
+        ).pack(side="right")
+
     def _build_header(self):
         fila_titulo = ctk.CTkFrame(self, fg_color="transparent")
         fila_titulo.pack(fill="x", pady=(0, 12))
 
         ctk.CTkLabel(
-            fila_titulo, text="Reportes", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
+            fila_titulo, text="Dashboard", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
         ).pack(side="left")
-
-        ctk.CTkButton(
-            fila_titulo, text="📊 Exportar a Excel", corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BLUE, hover_color=theme.BLUE_HOVER, text_color=theme.TEXT_ON_ACCENT,
-            command=self._exportar_excel,
-        ).pack(side="right")
 
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", pady=(0, 16))
@@ -91,8 +118,6 @@ class ReportesView(ctk.CTkFrame):
         self._resaltar_boton_activo(6)
 
     def _resaltar_boton_activo(self, dias_activos):
-        """Marca en azul fuerte el botón de rango rápido que corresponde al
-        filtro actualmente aplicado (ninguno si el rango es manual)."""
         for dias, boton in self.botones_rango.items():
             if dias == dias_activos:
                 boton.configure(fg_color=theme.BLUE, text_color=theme.TEXT_ON_ACCENT, hover_color=theme.BLUE)
@@ -122,16 +147,16 @@ class ReportesView(ctk.CTkFrame):
         self._resaltar_boton_activo(None)
         self._render_body()
 
-    def _exportar_excel(self):
-        nombre_sugerido = f"reporte_{self.desde.isoformat()}_a_{self.hasta.isoformat()}.xlsx"
+    def _exportar_pdf(self):
+        nombre_sugerido = f"reporte_{self.desde.isoformat()}_a_{self.hasta.isoformat()}.pdf"
         ruta = filedialog.asksaveasfilename(
-            parent=self, title="Guardar reporte como", defaultextension=".xlsx",
-            initialfile=nombre_sugerido, filetypes=[("Excel", "*.xlsx")],
+            parent=self, title="Guardar reporte como", defaultextension=".pdf",
+            initialfile=nombre_sugerido, filetypes=[("PDF", "*.pdf")],
         )
         if not ruta:
             return
         try:
-            export_svc.exportar_excel(self.desde.isoformat(), self.hasta.isoformat(), ruta)
+            pdf_service.exportar_pdf(self.desde.isoformat(), self.hasta.isoformat(), ruta)
         except Exception as e:
             messagebox.showerror("Error al exportar", f"No se pudo generar el archivo:\n{e}", parent=self)
             return
@@ -145,39 +170,45 @@ class ReportesView(ctk.CTkFrame):
         hasta_str = self.hasta.isoformat()
 
         resumen = rep.resumen_ventas(desde_str, hasta_str)
+        gastos_total = rep.resumen_gastos(desde_str, hasta_str)
+        self._kpis(self.body, resumen, gastos_total)
+
         if resumen["num_ventas"] == 0:
             self._estado_vacio(self.body)
-            return
+        else:
+            graficas = ctk.CTkFrame(self.body, fg_color="transparent")
+            graficas.pack(fill="x", pady=(16, 0))
+            graficas.grid_columnconfigure(0, weight=2)
+            graficas.grid_columnconfigure(1, weight=1)
 
-        self._kpis(self.body, resumen)
+            self._grafica_ventas_por_dia(graficas, rep.ventas_por_dia(desde_str, hasta_str))
+            self._grafica_metodo_pago(graficas, resumen)
 
-        graficas = ctk.CTkFrame(self.body, fg_color="transparent")
-        graficas.pack(fill="x", pady=(16, 0))
-        graficas.grid_columnconfigure(0, weight=2)
-        graficas.grid_columnconfigure(1, weight=1)
+            listas = ctk.CTkFrame(self.body, fg_color="transparent")
+            listas.pack(fill="x", pady=(16, 0))
+            listas.grid_columnconfigure(0, weight=1)
+            listas.grid_columnconfigure(1, weight=1)
 
-        self._grafica_ventas_por_dia(graficas, rep.ventas_por_dia(desde_str, hasta_str))
-        self._grafica_metodo_pago(graficas, resumen)
+            self._lista_productos(listas, rep.productos_mas_vendidos(desde_str, hasta_str), columna=0)
+            self._lista_empleados(listas, rep.ventas_por_empleado(desde_str, hasta_str), columna=1)
 
-        listas = ctk.CTkFrame(self.body, fg_color="transparent")
-        listas.pack(fill="x", pady=(16, 0))
-        listas.grid_columnconfigure(0, weight=1)
-        listas.grid_columnconfigure(1, weight=1)
+            self._lista_consumo_extras(
+                self.body, rep.consumo_insumos(desde_str, hasta_str, tipos=TIPOS_EXTRAS_BEBIDA)
+            )
 
-        self._lista_productos(listas, rep.productos_mas_vendidos(desde_str, hasta_str), columna=0)
-        self._lista_empleados(listas, rep.ventas_por_empleado(desde_str, hasta_str), columna=1)
+            self._lista_promociones(self.body, rep.promociones_uso(desde_str, hasta_str))
 
-        self._lista_consumo_extras(self.body, rep.consumo_insumos(desde_str, hasta_str, tipos=TIPOS_EXTRAS_BEBIDA))
+        PromocionesPanel(self.body).pack(fill="x", pady=(16, 0))
+        GastosPanel(self.body, current_user=self.current_user).pack(fill="x", pady=(16, 0))
 
     def _estado_vacio(self, master):
-        card = ctk.CTkFrame(master, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, height=320)
-        card.pack(fill="both", expand=True)
+        card = ctk.CTkFrame(master, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, height=220)
+        card.pack(fill="both", pady=(16, 0))
         card.pack_propagate(False)
 
         contenido = ctk.CTkFrame(card, fg_color="transparent")
         contenido.place(relx=0.5, rely=0.5, anchor="center")
 
-        ctk.CTkLabel(contenido, text="📭", font=(theme.FONT_FAMILY, 40)).pack(pady=(0, 12))
         ctk.CTkLabel(
             contenido, text="No hay ventas que mostrar en este rango de fechas",
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"), justify="center",
@@ -187,21 +218,27 @@ class ReportesView(ctk.CTkFrame):
             text_color=theme.TEXT_SECONDARY, justify="center",
         ).pack(pady=(4, 0))
 
-    def _kpis(self, master, resumen):
+    def _kpis(self, master, resumen, gastos_total):
+        utilidad_neta = resumen["ingresos_totales"] - gastos_total
+
         fila = ctk.CTkFrame(master, fg_color="transparent")
         fila.pack(fill="x")
-        for col in range(4):
+        for col in range(COLUMNAS_KPI):
             fila.grid_columnconfigure(col, weight=1)
 
         tarjetas = [
-            ("🛍", "Ventas del período", str(resumen["num_ventas"])),
-            ("$", "Ingresos totales", f"${resumen['ingresos_totales']:.2f}"),
-            ("📈", "Ticket promedio", f"${resumen['ticket_promedio']:.2f}"),
-            ("🏷", "Descuento aplicado", f"${resumen['descuento_total']:.2f}"),
+            ("🛍", "Ventas del período", str(resumen["num_ventas"]), None),
+            ("$", "Ingresos totales", f"${resumen['ingresos_totales']:.2f}", None),
+            ("📈", "Ticket promedio", f"${resumen['ticket_promedio']:.2f}", None),
+            ("🏷", "Descuento aplicado", f"${resumen['descuento_total']:.2f}", None),
+            ("💸", "Gastos totales", f"${gastos_total:.2f}", None),
+            ("⚖️", "Utilidad neta", f"${utilidad_neta:.2f}",
+             theme.SUCCESS if utilidad_neta >= 0 else theme.ERROR),
         ]
-        for i, (icono, titulo, valor) in enumerate(tarjetas):
+        for i, (icono, titulo, valor, color_valor) in enumerate(tarjetas):
+            fila_grid, columna_grid = divmod(i, COLUMNAS_KPI)
             card = ctk.CTkFrame(fila, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
-            card.grid(row=0, column=i, padx=6, sticky="nsew")
+            card.grid(row=fila_grid, column=columna_grid, padx=6, pady=6, sticky="nsew")
             ctk.CTkLabel(
                 card, text=icono, width=36, height=36, fg_color=theme.BLUE_SOFT, corner_radius=18,
                 font=(theme.FONT_FAMILY, 16),
@@ -209,6 +246,7 @@ class ReportesView(ctk.CTkFrame):
             ctk.CTkLabel(card, text=titulo, text_color=theme.TEXT_SECONDARY, anchor="w").pack(anchor="w", padx=16)
             ctk.CTkLabel(
                 card, text=valor, font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"), anchor="w",
+                text_color=color_valor or theme.TEXT_PRIMARY,
             ).pack(anchor="w", padx=16, pady=(0, 16))
 
     def _grafica_ventas_por_dia(self, master, datos):
@@ -348,3 +386,28 @@ class ReportesView(ctk.CTkFrame):
             ctk.CTkLabel(
                 chip, text=f"{item['nombre']}: {item['cantidad']:g}", text_color=theme.TEXT_PRIMARY,
             ).pack(padx=12, pady=8)
+
+    def _lista_promociones(self, master, datos):
+        card = ctk.CTkFrame(master, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
+        card.pack(fill="x", pady=(16, 0))
+        ctk.CTkLabel(
+            card, text="Uso de promociones", anchor="w",
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(anchor="w", padx=16, pady=(16, 8))
+
+        if not datos:
+            ctk.CTkLabel(card, text="Ninguna promoción se usó en este rango", text_color=theme.TEXT_SECONDARY).pack(
+                padx=16, pady=(0, 16)
+            )
+            return
+
+        for item in datos:
+            fila = ctk.CTkFrame(card, fg_color="transparent")
+            fila.pack(fill="x", padx=16, pady=6)
+            ctk.CTkLabel(fila, text=item["nombre"], anchor="w").pack(side="left")
+            ctk.CTkLabel(
+                fila, text=f"{item['num_usos']} usos · ${item['descuento_total']:.2f} en descuentos",
+                text_color=theme.TEXT_SECONDARY,
+            ).pack(side="right")
+
+        ctk.CTkFrame(card, fg_color="transparent", height=8).pack()

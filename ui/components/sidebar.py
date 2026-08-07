@@ -39,7 +39,7 @@ class Sidebar(ctk.CTkFrame):
 
         if on_ir_a_venta:
             ctk.CTkButton(
-                bottom, text="🏪  Ir al punto de venta", anchor="w",
+                bottom, text="Ir al punto de venta", anchor="w",
                 fg_color="transparent", text_color=theme.TEXT_PRIMARY,
                 hover_color=theme.BG_HOVER, corner_radius=theme.RADIUS_BUTTON,
                 height=40, command=on_ir_a_venta,

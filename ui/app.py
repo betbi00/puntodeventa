@@ -3,8 +3,8 @@ import customtkinter as ctk
 
 from config import NEGOCIO_NOMBRE, VENTANA_ALTO, VENTANA_ANCHO
 from ui import theme
+from ui.admin.dashboard_view import DashboardView
 from ui.admin.inventario_view import InventarioView
-from ui.admin.reportes_view import ReportesView
 from ui.admin.usuarios_view import UsuariosView
 from ui.components.sidebar import Sidebar
 from ui.login_view import LoginView
@@ -15,13 +15,10 @@ ADMIN_NAV_ITEMS = [
     {"key": "dashboard", "label": "Dashboard", "icon": "▦"},
     {"key": "inventario", "label": "Inventario", "icon": "◈"},
     {"key": "usuarios", "label": "Usuarios", "icon": "◔"},
-    {"key": "reportes", "label": "Reportes", "icon": "▤"},
     {"key": "recetas", "label": "Recetas", "icon": "▥"},
 ]
 
-PLACEHOLDER_FASES = {
-    "dashboard": "Fase 6",
-}
+PLACEHOLDER_FASES = {}
 
 
 class App(ctk.CTk):
@@ -76,16 +73,19 @@ class App(ctk.CTk):
         for widget in self._content_frame.winfo_children():
             widget.destroy()
 
-        if key == "usuarios":
+        if key == "dashboard":
+            DashboardView(
+                self._content_frame, current_user=self.current_user,
+                on_probar_impresion=self._probar_impresion,
+            ).pack(fill="both", expand=True)
+        elif key == "usuarios":
             UsuariosView(self._content_frame, current_user=self.current_user).pack(
                 fill="both", expand=True
             )
         elif key == "inventario":
-            InventarioView(self._content_frame, current_user=self.current_user).pack(
+            InventarioView(self._content_frame, current_user=self.current_user, puede_editar=True).pack(
                 fill="both", expand=True
             )
-        elif key == "reportes":
-            ReportesView(self._content_frame).pack(fill="both", expand=True)
         elif key == "recetas":
             RecetasView(self._content_frame, current_user=self.current_user, puede_editar=True).pack(
                 fill="both", expand=True
@@ -109,21 +109,11 @@ class App(ctk.CTk):
             justify="center",
         ).pack()
 
-        if key == "dashboard":
-            # Temporal: hasta que la Fase 6 tenga su propio dashboard, este
-            # botón permite probar el formato del ticket con datos de
-            # ejemplo sin necesidad de una venta real.
-            ctk.CTkButton(
-                contenido, text="🖨️  Probar impresión de ticket (datos de ejemplo)",
-                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
-                text_color=theme.TEXT_ON_ACCENT, command=self._probar_impresion,
-            ).pack(pady=(16, 0))
-
     def _probar_impresion(self):
         from services import impresion_service as imp
         from ui.components.ticket_preview_view import TicketPreviewDialog
 
-        TicketPreviewDialog(self, imp.datos_ticket_prueba())
+        TicketPreviewDialog(self, imp.datos_ticket_prueba(), datos_comanda=imp.datos_comanda_prueba())
 
     def _show_vendedor_shell(self, seccion="venta"):
         self._clear()
@@ -146,14 +136,19 @@ class App(ctk.CTk):
         inactivo = {"fg_color": theme.BG_INPUT, "text_color": theme.TEXT_PRIMARY, "hover_color": theme.BG_HOVER}
 
         ctk.CTkButton(
-            nav, text="🛍 Punto de venta", corner_radius=theme.RADIUS_BUTTON,
+            nav, text="Punto de venta", corner_radius=theme.RADIUS_BUTTON,
             command=lambda: self._show_vendedor_shell("venta"),
             **(activo if seccion == "venta" else inactivo),
         ).pack(side="left", padx=4)
         ctk.CTkButton(
-            nav, text="📖 Recetas", corner_radius=theme.RADIUS_BUTTON,
+            nav, text="Recetas", corner_radius=theme.RADIUS_BUTTON,
             command=lambda: self._show_vendedor_shell("recetas"),
             **(activo if seccion == "recetas" else inactivo),
+        ).pack(side="left", padx=4)
+        ctk.CTkButton(
+            nav, text="Inventario", corner_radius=theme.RADIUS_BUTTON,
+            command=lambda: self._show_vendedor_shell("inventario"),
+            **(activo if seccion == "inventario" else inactivo),
         ).pack(side="left", padx=4)
 
         if self.current_user.rol == "admin":
@@ -176,5 +171,12 @@ class App(ctk.CTk):
             # Solo lectura aquí siempre, sin importar el rol: la gestión
             # completa de recetas vive en el sidebar del administrador.
             RecetasView(body, current_user=self.current_user, puede_editar=False).pack(fill="both", expand=True)
+        elif seccion == "inventario":
+            # Acceso restringido aquí siempre (sin importar el rol): pueden
+            # registrar entradas de mercancía y ajustar stock, pero crear,
+            # editar o desactivar artículos sigue siendo solo del admin.
+            InventarioView(body, current_user=self.current_user, puede_editar=False).pack(
+                fill="both", expand=True
+            )
         else:
             VentaView(body, current_user=self.current_user).pack(fill="both", expand=True)
