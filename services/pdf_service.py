@@ -57,47 +57,66 @@ def exportar_pdf(desde: str, hasta: str, ruta_destino: str) -> None:
     elementos.append(Spacer(1, 16))
 
     elementos.append(Paragraph("Productos más vendidos", estilos["h2"]))
+    productos = rep.productos_mas_vendidos(desde, hasta, limite=15)
     elementos.append(_tabla_o_vacio(
-        rep.productos_mas_vendidos(desde, hasta, limite=15),
+        productos,
         ["Producto", "Cantidad", "Ingresos"],
         lambda d: [d["nombre"], str(d["cantidad"]), f"${d['ingresos']:.2f}"],
         [9 * cm, 3.5 * cm, 4.5 * cm], estilos,
+        fila_total=["Total", str(sum(d["cantidad"] for d in productos)), f"${sum(d['ingresos'] for d in productos):.2f}"]
+        if productos else None,
     ))
     elementos.append(Spacer(1, 12))
 
     elementos.append(Paragraph("Ventas por empleado", estilos["h2"]))
+    empleados = rep.ventas_por_empleado(desde, hasta)
     elementos.append(_tabla_o_vacio(
-        rep.ventas_por_empleado(desde, hasta),
-        ["Empleado", "Ventas", "Ingresos"],
-        lambda d: [d["nombre"], str(d["num_ventas"]), f"${d['ingresos']:.2f}"],
-        [9 * cm, 3.5 * cm, 4.5 * cm], estilos,
+        empleados,
+        ["Empleado", "Ventas", "Ingresos", "Descuento total"],
+        lambda d: [d["nombre"], str(d["num_ventas"]), f"${d['ingresos']:.2f}", f"${d['descuento_total']:.2f}"],
+        [6 * cm, 3 * cm, 4 * cm, 4 * cm], estilos,
+        fila_total=[
+            "Total", str(sum(d["num_ventas"] for d in empleados)),
+            f"${sum(d['ingresos'] for d in empleados):.2f}", f"${sum(d['descuento_total'] for d in empleados):.2f}",
+        ] if empleados else None,
+    ))
+    elementos.append(Spacer(1, 12))
+
+    elementos.append(Paragraph("Descuentos aplicados", estilos["h2"]))
+    descuentos = rep.descuentos_aplicados(desde, hasta)
+    elementos.append(_tabla_o_vacio(
+        descuentos,
+        ["Día", "Empleado", "% Desc.", "Monto", "Promoción"],
+        lambda d: [
+            _dia_corto(d["dia"]), d["empleado"], f"{d['descuento_pct']:.0f}%",
+            f"${d['descuento_monto']:.2f}", d["promocion"] or "Manual",
+        ],
+        [2.2 * cm, 4.8 * cm, 2.3 * cm, 3.2 * cm, 4.5 * cm], estilos,
+        fila_total=["Total", "", "", f"${sum(d['descuento_monto'] for d in descuentos):.2f}", ""]
+        if descuentos else None,
     ))
     elementos.append(Spacer(1, 12))
 
     elementos.append(Paragraph("Uso de promociones", estilos["h2"]))
+    promos = rep.promociones_uso(desde, hasta)
     elementos.append(_tabla_o_vacio(
-        rep.promociones_uso(desde, hasta),
+        promos,
         ["Promoción", "Usos", "Descuento total"],
         lambda d: [d["nombre"], str(d["num_usos"]), f"${d['descuento_total']:.2f}"],
         [9 * cm, 3.5 * cm, 4.5 * cm], estilos,
+        fila_total=["Total", str(sum(d["num_usos"] for d in promos)), f"${sum(d['descuento_total'] for d in promos):.2f}"]
+        if promos else None,
     ))
     elementos.append(Spacer(1, 12))
 
-    elementos.append(Paragraph("Consumo de boba y perlas explosivas", estilos["h2"]))
+    elementos.append(Paragraph("Consumo de insumos", estilos["h2"]))
+    consumo = rep.consumo_insumos(desde, hasta, tipos=["ingrediente"] + TIPOS_EXTRAS_BEBIDA)
     elementos.append(_tabla_o_vacio(
-        rep.consumo_insumos(desde, hasta, tipos=TIPOS_EXTRAS_BEBIDA),
+        consumo,
         ["Insumo", "Cantidad consumida"],
         lambda d: [d["nombre"], f"{d['cantidad']:g}"],
         [11 * cm, 6 * cm], estilos,
-    ))
-    elementos.append(Spacer(1, 12))
-
-    elementos.append(Paragraph("Consumo de ingredientes", estilos["h2"]))
-    elementos.append(_tabla_o_vacio(
-        rep.consumo_insumos(desde, hasta, tipos=["ingrediente"]),
-        ["Ingrediente", "Cantidad consumida"],
-        lambda d: [d["nombre"], f"{d['cantidad']:g}"],
-        [11 * cm, 6 * cm], estilos,
+        fila_total=["Total", f"{sum(d['cantidad'] for d in consumo):g}"] if consumo else None,
     ))
     elementos.append(Spacer(1, 12))
 
@@ -110,18 +129,22 @@ def exportar_pdf(desde: str, hasta: str, ruta_destino: str) -> None:
             g.fecha, gasto_service.CATEGORIA_ETIQUETAS.get(g.categoria, g.categoria), g.concepto, f"${g.monto:.2f}",
         ],
         [3 * cm, 3.5 * cm, 7 * cm, 3.5 * cm], estilos,
+        fila_total=["Total", "", "", f"${sum(g.monto for g in gastos):.2f}"] if gastos else None,
     ))
 
     elementos.append(PageBreak())
     elementos.append(Paragraph("Apéndice: detalle de ventas", estilos["h2"]))
+    ventas_detalle = rep.detalle_ventas(desde, hasta)
     elementos.append(_tabla_o_vacio(
-        rep.detalle_ventas(desde, hasta),
+        ventas_detalle,
         ["Venta #", "Fecha y hora", "Empleado", "Total", "Método"],
         lambda v: [
             str(v["venta_id"]), v["fecha_hora"], v["empleado"], f"${v['total']:.2f}",
             "Efectivo" if v["metodo_pago"] == "efectivo" else "Tarjeta",
         ],
         [2 * cm, 4.5 * cm, 5 * cm, 3 * cm, 3 * cm], estilos,
+        fila_total=["", "", "Total", f"${sum(v['total'] for v in ventas_detalle):.2f}", ""]
+        if ventas_detalle else None,
     ))
 
     doc = SimpleDocTemplate(
@@ -175,43 +198,48 @@ def _figura_a_imagen(fig, ancho_cm, alto_cm):
 
 
 def _grafica_ventas_por_dia(datos):
-    fig = Figure(figsize=(4.6, 3), dpi=150, facecolor="white")
+    fig = Figure(figsize=(6.4, 4.2), dpi=150, facecolor="white")
     ax = fig.add_subplot(111)
-    ax.set_title("Ventas por día", fontsize=10, color="#22242B")
+    ax.set_title("Ventas por día", fontsize=12, color="#22242B", pad=10)
     if datos:
         dias = [d["dia"][5:] for d in datos]
         ingresos = [d["ingresos"] for d in datos]
-        ax.bar(dias, ingresos, color="#F1A7C6")
-        ax.tick_params(labelsize=7, colors="#8A8D96")
+        ax.bar(dias, ingresos, color="#F1A7C6", width=0.6)
+        ax.tick_params(labelsize=9, colors="#8A8D96")
+        if len(dias) > 6:
+            ax.tick_params(axis="x", labelrotation=45)
+        ax.grid(axis="y", color="#ECE7EA", linewidth=0.8, zorder=0)
+        ax.set_axisbelow(True)
     else:
-        ax.text(0.5, 0.5, "Sin ventas en este rango", ha="center", va="center", fontsize=9, color="#8A8D96")
+        ax.text(0.5, 0.5, "Sin ventas en este rango", ha="center", va="center", fontsize=10, color="#8A8D96")
         ax.set_xticks([])
         ax.set_yticks([])
     for spine in ax.spines.values():
         spine.set_color("#ECE7EA")
-    fig.tight_layout()
-    return _figura_a_imagen(fig, 9, 5.9)
+    fig.tight_layout(pad=1.4)
+    return _figura_a_imagen(fig, 10.5, 6.9)
 
 
 def _grafica_metodo_pago(resumen):
-    fig = Figure(figsize=(3.2, 3), dpi=150, facecolor="white")
+    fig = Figure(figsize=(4.2, 4.2), dpi=150, facecolor="white")
     ax = fig.add_subplot(111)
-    ax.set_title("Ingresos por método de pago", fontsize=10, color="#22242B")
+    ax.set_title("Ingresos por método de pago", fontsize=12, color="#22242B", pad=10)
     valores = [resumen["ingresos_efectivo"], resumen["ingresos_tarjeta"]]
     if sum(valores) > 0:
         ax.pie(
             valores, labels=["Efectivo", "Tarjeta"], colors=["#F1A7C6", "#AFD6F2"],
-            autopct="%1.0f%%", textprops={"fontsize": 8, "color": "#22242B"},
+            autopct="%1.0f%%", textprops={"fontsize": 10, "color": "#22242B"},
+            wedgeprops={"linewidth": 1.5, "edgecolor": "white"},
         )
     else:
-        ax.text(0.5, 0.5, "Sin ventas", ha="center", va="center", fontsize=9, color="#8A8D96")
+        ax.text(0.5, 0.5, "Sin ventas", ha="center", va="center", fontsize=10, color="#8A8D96")
         ax.axis("off")
-    fig.tight_layout()
-    return _figura_a_imagen(fig, 6.5, 5.9)
+    fig.tight_layout(pad=1.4)
+    return _figura_a_imagen(fig, 6.9, 6.9)
 
 
 def _fila_graficas(img_izquierda, img_derecha):
-    tabla = Table([[img_izquierda, img_derecha]], colWidths=[9.5 * cm, 7 * cm])
+    tabla = Table([[img_izquierda, img_derecha]], colWidths=[10.7 * cm, 7 * cm])
     tabla.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ALIGN", (0, 0), (0, 0), "LEFT"),
@@ -220,13 +248,22 @@ def _fila_graficas(img_izquierda, img_derecha):
     return tabla
 
 
-def _tabla_o_vacio(datos, encabezados, fila_fn, anchos, estilos):
+def _dia_corto(dia_iso: str) -> str:
+    """'2026-08-10' -> '10-08' (día-mes), como se escriben las fechas
+    normalmente aquí, en vez del 'YYYY-MM-DD' de la base de datos."""
+    return f"{dia_iso[8:10]}-{dia_iso[5:7]}"
+
+
+def _tabla_o_vacio(datos, encabezados, fila_fn, anchos, estilos, fila_total=None):
+    """fila_total (opcional) es una lista de celdas ya formateadas (mismo
+    número de columnas que encabezados) que se agrega como última fila,
+    resaltada, con el total de la tabla — usar "" en las columnas donde
+    un total no tiene sentido (ej. un porcentaje o un método de pago)."""
     if not datos:
         return Paragraph("Sin datos en este rango.", estilos["vacio"])
 
     filas = [encabezados] + [fila_fn(d) for d in datos]
-    tabla = Table(filas, colWidths=anchos, repeatRows=1)
-    tabla.setStyle(TableStyle([
+    estilo_cmds = [
         ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("BACKGROUND", (0, 0), (-1, 0), AZUL_SUAVE),
@@ -236,5 +273,17 @@ def _tabla_o_vacio(datos, encabezados, fila_fn, anchos, estilos):
         ("TOPPADDING", (0, 0), (-1, -1), 5),
         ("LINEBELOW", (0, 0), (-1, -1), 0.5, BORDE),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-    ]))
+    ]
+    if fila_total is not None:
+        filas.append(fila_total)
+        ultima = len(filas) - 1
+        estilo_cmds += [
+            ("FONTNAME", (0, ultima), (-1, ultima), "Helvetica-Bold"),
+            ("LINEABOVE", (0, ultima), (-1, ultima), 0.75, TEXTO_SECUNDARIO),
+            ("LINEBELOW", (0, ultima), (-1, ultima), 0, BORDE),
+            ("TOPPADDING", (0, ultima), (-1, ultima), 7),
+        ]
+
+    tabla = Table(filas, colWidths=anchos, repeatRows=1)
+    tabla.setStyle(TableStyle(estilo_cmds))
     return tabla

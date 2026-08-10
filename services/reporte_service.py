@@ -61,7 +61,8 @@ def productos_mas_vendidos(desde: str, hasta: str, limite: int = 10) -> list[dic
 def ventas_por_empleado(desde: str, hasta: str) -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
-            """SELECT u.nombre AS nombre, COUNT(*) AS num_ventas, SUM(v.total) AS ingresos
+            """SELECT u.nombre AS nombre, COUNT(*) AS num_ventas, SUM(v.total) AS ingresos,
+                      COALESCE(SUM(v.descuento_monto), 0) AS descuento_total
                FROM ventas v
                JOIN usuarios u ON u.id = v.usuario_id
                WHERE v.estado = 'completada' AND date(v.fecha_hora) BETWEEN ? AND ?
@@ -69,7 +70,40 @@ def ventas_por_empleado(desde: str, hasta: str) -> list[dict]:
                ORDER BY ingresos DESC""",
             (desde, hasta),
         ).fetchall()
-    return [{"nombre": r["nombre"], "num_ventas": r["num_ventas"], "ingresos": r["ingresos"]} for r in rows]
+    return [
+        {
+            "nombre": r["nombre"], "num_ventas": r["num_ventas"], "ingresos": r["ingresos"],
+            "descuento_total": r["descuento_total"],
+        }
+        for r in rows
+    ]
+
+
+def descuentos_aplicados(desde: str, hasta: str) -> list[dict]:
+    """Una fila por cada venta con descuento (>0) dentro del rango: quién
+    la cobró, cuánto fue el descuento y en qué día — a diferencia de
+    ventas_por_empleado (que solo trae el acumulado), esto es el detalle
+    evento por evento que permite revisar cada descuento aplicado."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """SELECT v.id AS venta_id, date(v.fecha_hora) AS dia, u.nombre AS empleado,
+                      v.descuento_pct, v.descuento_monto, p.nombre AS promocion
+               FROM ventas v
+               JOIN usuarios u ON u.id = v.usuario_id
+               LEFT JOIN promociones p ON p.id = v.promocion_id
+               WHERE v.estado = 'completada' AND date(v.fecha_hora) BETWEEN ? AND ?
+                     AND v.descuento_monto > 0
+               ORDER BY v.fecha_hora""",
+            (desde, hasta),
+        ).fetchall()
+    return [
+        {
+            "venta_id": r["venta_id"], "dia": r["dia"], "empleado": r["empleado"],
+            "descuento_pct": r["descuento_pct"], "descuento_monto": r["descuento_monto"],
+            "promocion": r["promocion"],
+        }
+        for r in rows
+    ]
 
 
 def consumo_insumos(desde: str, hasta: str, tipos: list[str] = None) -> list[dict]:
