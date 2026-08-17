@@ -1,9 +1,15 @@
 """Pantalla de inicio de sesión."""
 import customtkinter as ctk
+from PIL import Image
 
-from config import NEGOCIO_SUBTITULO
+from config import LOGO_PATH
 from services import auth_service
 from ui import theme
+
+# El logo original es 3300x2550 (relación ~1.29:1) — se muestra afuera y
+# arriba de la tarjeta de credenciales, a este tamaño.
+LOGO_ANCHO = 560
+LOGO_ALTO = 434
 
 
 class LoginView(ctk.CTkFrame):
@@ -13,18 +19,15 @@ class LoginView(ctk.CTkFrame):
         self._build()
 
     def _build(self):
-        ctk.CTkLabel(
-            self,
-            text=f"Punto de venta · {NEGOCIO_SUBTITULO}",
-            font=(theme.FONT_FAMILY, theme.FONT_SIZE_SUBTITLE),
-            text_color=theme.TEXT_SECONDARY,
-        ).place(relx=0.5, rely=0.14, anchor="center")
+        logo_imagen = Image.open(LOGO_PATH)
+        self.logo = ctk.CTkImage(light_image=logo_imagen, dark_image=logo_imagen, size=(LOGO_ANCHO, LOGO_ALTO))
+        ctk.CTkLabel(self, image=self.logo, text="").place(relx=0.5, rely=0.20, anchor="center")
 
         card = ctk.CTkFrame(
             self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD,
             width=420, height=400,
         )
-        card.place(relx=0.5, rely=0.5, anchor="center")
+        card.place(relx=0.5, rely=0.62, anchor="center")
         card.pack_propagate(False)
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
