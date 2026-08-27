@@ -16,6 +16,7 @@ MIGRACIONES_COLUMNAS = [
     ("recetas", "pasos", "TEXT"),
     ("bebidas", "stock_actual", "REAL NOT NULL DEFAULT 0"),
     ("bebidas", "stock_minimo", "REAL NOT NULL DEFAULT 0"),
+    ("recetas", "imagen_pasos_path", "TEXT"),
 ]
 
 
@@ -123,11 +124,28 @@ def _migrar_movimientos_inventario_bebida(conn) -> None:
         conn.execute("PRAGMA foreign_keys = ON")
 
 
+def _migrar_recetas_quitar_video(conn) -> None:
+    """El negocio dejó de usar videos de YouTube para las recetas (se
+    tarda más grabar/ver el video que memorizar el paso a paso), así que
+    video_url/video_id/miniatura_path ya no se usan — se reemplazan por
+    imagen_pasos_path (agregada arriba en MIGRACIONES_COLUMNAS). SQLite
+    3.35+ sí permite DROP COLUMN directo, sin necesitar reconstruir la
+    tabla como con un CHECK."""
+    if not _tabla_existe(conn, "recetas"):
+        return  # tabla nueva: schema.sql ya la crea sin estas columnas
+
+    columnas_existentes = {row["name"] for row in conn.execute("PRAGMA table_info(recetas)")}
+    for columna in ("video_url", "video_id", "miniatura_path"):
+        if columna in columnas_existentes:
+            conn.execute(f"ALTER TABLE recetas DROP COLUMN {columna}")
+
+
 def initialize_database() -> None:
     schema_sql = SCHEMA_PATH.read_text(encoding="utf-8")
     with get_connection() as conn:
         _aplicar_migraciones_columnas(conn)
         _migrar_check_insumos_tipo(conn)
         _migrar_movimientos_inventario_bebida(conn)
+        _migrar_recetas_quitar_video(conn)
         conn.executescript(schema_sql)
         seed_all(conn)

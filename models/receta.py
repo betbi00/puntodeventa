@@ -15,9 +15,7 @@ from db.connection import get_connection
 class Receta:
     id: int
     nombre_producto: str
-    video_url: str
-    video_id: Optional[str]
-    miniatura_path: Optional[str]
+    imagen_pasos_path: Optional[str]
     ingredientes: Optional[str]
     pasos: Optional[str]
     creado_por: Optional[int]
@@ -28,9 +26,7 @@ class Receta:
         return Receta(
             id=row["id"],
             nombre_producto=row["nombre_producto"],
-            video_url=row["video_url"],
-            video_id=row["video_id"],
-            miniatura_path=row["miniatura_path"],
+            imagen_pasos_path=row["imagen_pasos_path"],
             ingredientes=row["ingredientes"],
             pasos=row["pasos"],
             creado_por=row["creado_por"],
@@ -59,30 +55,29 @@ def get_by_id(receta_id: int) -> Optional[Receta]:
 
 
 def crear(
-    nombre_producto: str, video_url: str, video_id: Optional[str], miniatura_path: Optional[str],
+    nombre_producto: str, imagen_pasos_path: Optional[str],
     ingredientes: Optional[str], pasos: Optional[str], creado_por: int,
 ) -> Receta:
     with get_connection() as conn:
         cursor = conn.execute(
-            """INSERT INTO recetas (nombre_producto, video_url, video_id, miniatura_path, ingredientes, pasos, creado_por)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (nombre_producto, video_url, video_id, miniatura_path, ingredientes, pasos, creado_por),
+            """INSERT INTO recetas (nombre_producto, imagen_pasos_path, ingredientes, pasos, creado_por)
+               VALUES (?, ?, ?, ?, ?)""",
+            (nombre_producto, imagen_pasos_path, ingredientes, pasos, creado_por),
         )
         nuevo_id = cursor.lastrowid
     return get_by_id(nuevo_id)
 
 
 def actualizar(
-    receta_id: int, nombre_producto: str, video_url: str, video_id: Optional[str],
-    miniatura_path: Optional[str], ingredientes: Optional[str], pasos: Optional[str],
+    receta_id: int, nombre_producto: str, imagen_pasos_path: Optional[str],
+    ingredientes: Optional[str], pasos: Optional[str],
 ) -> None:
     with get_connection() as conn:
         conn.execute(
             """UPDATE recetas
-               SET nombre_producto = ?, video_url = ?, video_id = ?, miniatura_path = ?,
-                   ingredientes = ?, pasos = ?
+               SET nombre_producto = ?, imagen_pasos_path = ?, ingredientes = ?, pasos = ?
                WHERE id = ?""",
-            (nombre_producto, video_url, video_id, miniatura_path, ingredientes, pasos, receta_id),
+            (nombre_producto, imagen_pasos_path, ingredientes, pasos, receta_id),
         )
 
 

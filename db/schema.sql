@@ -127,11 +127,10 @@ CREATE TABLE IF NOT EXISTS gastos (
 CREATE TABLE IF NOT EXISTS recetas (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_producto     TEXT NOT NULL,
-    video_url           TEXT NOT NULL,
-    video_id            TEXT,
-    miniatura_path      TEXT,
-    -- Texto libre (una línea por elemento) para consulta rápida sin tener
-    -- que abrir el video: qué ingredientes lleva y los pasos a grandes rasgos.
+    -- Imagen del paso a paso (infografía), reemplaza al video de YouTube
+    -- que se usaba antes: se ve más rápido que un video y no hay que
+    -- esperar a que alguien lo reproduzca para recordar cómo se hace.
+    imagen_pasos_path   TEXT,
     ingredientes        TEXT,
     pasos               TEXT,
     creado_por          INTEGER REFERENCES usuarios(id),
