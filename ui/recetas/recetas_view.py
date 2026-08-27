@@ -1,8 +1,8 @@
-"""Vista de recetas: cada tarjeta muestra el nombre del producto y una
-miniatura de la imagen de paso a paso. "Ver receta" abre un popup con la
-imagen completa (con botón para ampliarla a pantalla completa) de un lado
-y la receta detallada (ingredientes y pasos) del otro. El administrador
-puede crear/editar/Quitar; el vendedor solo ve (solo lectura)."""
+"""Vista de recetas: cada tarjeta muestra, lado a lado, la imagen del
+paso a paso (grande, con botón para ampliarla a pantalla completa) y la
+receta detallada (ingredientes y pasos) — todo visible de un vistazo, sin
+tener que abrir nada. El administrador puede crear/editar/Quitar; el
+vendedor solo ve (solo lectura)."""
 from pathlib import Path
 from tkinter import filedialog
 
@@ -12,9 +12,8 @@ from PIL import Image
 from services import receta_service as recetas
 from ui import theme
 
-TAMANO_MINIATURA = (180, 100)
-TAMANO_IMAGEN_POPUP = (420, 300)
-ANCHO_COLUMNA_IZQUIERDA = 210
+TAMANO_IMAGEN_LISTA = (420, 300)
+ANCHO_COLUMNA_IZQUIERDA = 440
 
 
 def _imagen_ajustada(ruta, max_ancho, max_alto):
@@ -75,20 +74,16 @@ class RecetasView(ctk.CTkFrame):
         contenido.pack(fill="x", padx=16, pady=16)
 
         izquierda = ctk.CTkFrame(contenido, fg_color="transparent", width=ANCHO_COLUMNA_IZQUIERDA)
-        izquierda.pack(side="left", padx=(0, 16))
+        izquierda.pack(side="left", padx=(0, 16), fill="y")
         izquierda.pack_propagate(False)
 
-        self._miniatura(izquierda, receta)
-        ctk.CTkLabel(
-            izquierda, text=receta.nombre_producto, anchor="w", justify="left",
-            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"), wraplength=ANCHO_COLUMNA_IZQUIERDA - 10,
-        ).pack(fill="x", pady=(8, 8))
-
-        ctk.CTkButton(
-            izquierda, text="Ver receta", corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BLUE_SOFT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
-            command=lambda r=receta: RecetaDetalleDialog(self, r),
-        ).pack(fill="x")
+        tiene_imagen = self._imagen_grande(izquierda, receta)
+        if tiene_imagen:
+            ctk.CTkButton(
+                izquierda, text="Ampliar imagen", corner_radius=theme.RADIUS_BUTTON,
+                fg_color=theme.BLUE_SOFT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
+                command=lambda r=receta: ImagenCompletaDialog(self, r),
+            ).pack(fill="x", pady=(10, 0))
 
         if self.puede_editar:
             acciones = ctk.CTkFrame(izquierda, fg_color="transparent")
@@ -104,19 +99,54 @@ class RecetasView(ctk.CTkFrame):
                 command=lambda r=receta: self._confirmar_Quitar(r),
             ).pack(side="left", expand=True, fill="x", padx=(4, 0))
 
-    def _miniatura(self, master, receta):
+        derecha = ctk.CTkFrame(contenido, fg_color="transparent")
+        derecha.pack(side="left", fill="both", expand=True)
+
+        ctk.CTkLabel(
+            derecha, text=receta.nombre_producto, anchor="w",
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
+        ).pack(fill="x", pady=(0, 12))
+
+        if receta.lista_ingredientes:
+            self._bloque_texto(derecha, "Ingredientes", receta.lista_ingredientes)
+        self._bloque_texto(derecha, "Pasos", receta.lista_pasos, numerado=True)
+
+    def _imagen_grande(self, master, receta) -> bool:
+        """Devuelve True si sí había una imagen para mostrar."""
         if receta.imagen_pasos_path and Path(receta.imagen_pasos_path).exists():
             try:
-                imagen, tamano = _imagen_ajustada(receta.imagen_pasos_path, *TAMANO_MINIATURA)
+                imagen, tamano = _imagen_ajustada(receta.imagen_pasos_path, *TAMANO_IMAGEN_LISTA)
                 ctk_imagen = ctk.CTkImage(light_image=imagen, dark_image=imagen, size=tamano)
-                ctk.CTkLabel(master, image=ctk_imagen, text="").pack()
-                return
+                ctk.CTkLabel(master, image=ctk_imagen, text="").pack(expand=True)
+                return True
             except Exception:
                 pass
         ctk.CTkLabel(
-            master, text="🖼", fg_color=theme.BG_INPUT, corner_radius=theme.RADIUS_INPUT,
-            width=TAMANO_MINIATURA[0], height=TAMANO_MINIATURA[1], font=(theme.FONT_FAMILY, 32),
-        ).pack()
+            master, text="🖼  Sin imagen de pasos", fg_color=theme.BG_INPUT, corner_radius=theme.RADIUS_INPUT,
+            width=TAMANO_IMAGEN_LISTA[0], height=TAMANO_IMAGEN_LISTA[1], font=(theme.FONT_FAMILY, 16),
+            text_color=theme.TEXT_SECONDARY,
+        ).pack(expand=True)
+        return False
+
+    def _bloque_texto(self, master, titulo, items, numerado=False):
+        ctk.CTkLabel(
+            master, text=titulo, anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(fill="x", pady=(0, 6))
+
+        if not items:
+            ctk.CTkLabel(
+                master, text="No especificado", anchor="w", text_color=theme.TEXT_SECONDARY,
+            ).pack(fill="x", pady=3)
+            ctk.CTkFrame(master, fg_color="transparent", height=8).pack()
+            return
+
+        for i, item in enumerate(items, start=1):
+            prefijo = f"{i}. " if numerado else "•  "
+            ctk.CTkLabel(
+                master, text=prefijo + item, anchor="w", justify="left", wraplength=560,
+            ).pack(fill="x", pady=3)
+
+        ctk.CTkFrame(master, fg_color="transparent", height=8).pack()
 
     def _abrir_form_nuevo(self):
         FormularioReceta(self, receta=None, current_user=self.current_user, on_guardado=self._refrescar)
@@ -126,78 +156,6 @@ class RecetasView(ctk.CTkFrame):
 
     def _confirmar_Quitar(self, receta):
         ConfirmarQuitarReceta(self, receta, on_confirmado=self._refrescar)
-
-
-class RecetaDetalleDialog(ctk.CTkToplevel):
-    """Popup con la imagen del paso a paso de un lado (con botón para
-    ampliarla) y la receta detallada (ingredientes y pasos) del otro."""
-
-    def __init__(self, master, receta):
-        super().__init__(master)
-        self.receta = receta
-        self.title(receta.nombre_producto)
-        self.geometry("880x560")
-        self.configure(fg_color=theme.BG_PAGE)
-        self.grab_set()
-        self._build()
-
-    def _build(self):
-        ctk.CTkLabel(
-            self, text=self.receta.nombre_producto, font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
-        ).pack(anchor="w", padx=24, pady=(20, 12))
-
-        cuerpo = ctk.CTkFrame(self, fg_color="transparent")
-        cuerpo.pack(fill="both", expand=True, padx=24, pady=(0, 12))
-
-        izquierda = ctk.CTkFrame(cuerpo, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, width=440)
-        izquierda.pack(side="left", fill="y", padx=(0, 12))
-        izquierda.pack_propagate(False)
-        self._panel_imagen(izquierda)
-
-        derecha = ctk.CTkScrollableFrame(cuerpo, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
-        derecha.pack(side="left", fill="both", expand=True)
-        self._bloque_texto(derecha, "Ingredientes", self.receta.lista_ingredientes)
-        self._bloque_texto(derecha, "Pasos", self.receta.lista_pasos, numerado=True)
-
-        ctk.CTkButton(
-            self, text="Cerrar", fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY,
-            hover_color=theme.BG_HOVER, corner_radius=theme.RADIUS_BUTTON, command=self.destroy,
-        ).pack(fill="x", padx=24, pady=(0, 20))
-
-    def _panel_imagen(self, master):
-        contenedor = ctk.CTkFrame(master, fg_color="transparent")
-        contenedor.pack(fill="both", expand=True, padx=16, pady=16)
-
-        if self.receta.imagen_pasos_path and Path(self.receta.imagen_pasos_path).exists():
-            imagen, tamano = _imagen_ajustada(self.receta.imagen_pasos_path, *TAMANO_IMAGEN_POPUP)
-            self.imagen_ctk = ctk.CTkImage(light_image=imagen, dark_image=imagen, size=tamano)
-            ctk.CTkLabel(contenedor, image=self.imagen_ctk, text="").pack(expand=True)
-            ctk.CTkButton(
-                contenedor, text="Ampliar imagen", corner_radius=theme.RADIUS_BUTTON,
-                fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
-                command=lambda: ImagenCompletaDialog(self, self.receta),
-            ).pack(fill="x", pady=(12, 0))
-        else:
-            ctk.CTkLabel(
-                contenedor, text="Sin imagen de pasos todavía", text_color=theme.TEXT_SECONDARY,
-            ).pack(expand=True)
-
-    def _bloque_texto(self, master, titulo, items, numerado=False):
-        ctk.CTkLabel(
-            master, text=titulo, anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(fill="x", padx=16, pady=(16, 6))
-
-        if not items:
-            ctk.CTkLabel(
-                master, text="No especificado", anchor="w", text_color=theme.TEXT_SECONDARY,
-            ).pack(fill="x", padx=16, pady=(0, 8))
-            return
-
-        for i, item in enumerate(items, start=1):
-            prefijo = f"{i}. " if numerado else "•  "
-            ctk.CTkLabel(
-                master, text=prefijo + item, anchor="w", justify="left", wraplength=340,
-            ).pack(fill="x", padx=16, pady=3)
 
 
 class ImagenCompletaDialog(ctk.CTkToplevel):
