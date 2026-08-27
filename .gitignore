@@ -1,0 +1,24 @@
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Base de datos local
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+
+# Variables de entorno / secretos
+.env
+
+# Miniaturas de recetas descargadas automáticamente de YouTube (se regeneran solas)
+
+# Sistema
+.DS_Store
