@@ -1,8 +1,8 @@
 """Vista de recetas: cada tarjeta muestra, lado a lado, la imagen del
-paso a paso (grande, con botón para ampliarla a pantalla completa) y la
-receta detallada (ingredientes y pasos) — todo visible de un vistazo, sin
-tener que abrir nada. El administrador puede crear/editar/Quitar; el
-vendedor solo ve (solo lectura)."""
+paso a paso (grande — se le puede dar clic para ampliarla a pantalla
+completa) y la receta detallada (ingredientes y pasos) — todo visible de
+un vistazo, sin tener que abrir nada. El administrador puede
+crear/editar/Quitar; el vendedor solo ve (solo lectura)."""
 from pathlib import Path
 from tkinter import filedialog
 
@@ -14,6 +14,7 @@ from ui import theme
 
 TAMANO_IMAGEN_LISTA = (420, 300)
 ANCHO_COLUMNA_IZQUIERDA = 440
+ALTO_COLUMNA_IZQUIERDA = 360
 
 
 def _imagen_ajustada(ruta, max_ancho, max_alto):
@@ -73,17 +74,13 @@ class RecetasView(ctk.CTkFrame):
         contenido = ctk.CTkFrame(card, fg_color="transparent")
         contenido.pack(fill="x", padx=16, pady=16)
 
-        izquierda = ctk.CTkFrame(contenido, fg_color="transparent", width=ANCHO_COLUMNA_IZQUIERDA)
+        izquierda = ctk.CTkFrame(
+            contenido, fg_color="transparent", width=ANCHO_COLUMNA_IZQUIERDA, height=ALTO_COLUMNA_IZQUIERDA,
+        )
         izquierda.pack(side="left", padx=(0, 16), fill="y")
         izquierda.pack_propagate(False)
 
-        tiene_imagen = self._imagen_grande(izquierda, receta)
-        if tiene_imagen:
-            ctk.CTkButton(
-                izquierda, text="Ampliar imagen", corner_radius=theme.RADIUS_BUTTON,
-                fg_color=theme.BLUE_SOFT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
-                command=lambda r=receta: ImagenCompletaDialog(self, r),
-            ).pack(fill="x", pady=(10, 0))
+        self._imagen_grande(izquierda, receta)
 
         if self.puede_editar:
             acciones = ctk.CTkFrame(izquierda, fg_color="transparent")
@@ -111,14 +108,20 @@ class RecetasView(ctk.CTkFrame):
             self._bloque_texto(derecha, "Ingredientes", receta.lista_ingredientes)
         self._bloque_texto(derecha, "Pasos", receta.lista_pasos, numerado=True)
 
-    def _imagen_grande(self, master, receta) -> bool:
-        """Devuelve True si sí había una imagen para mostrar."""
+    def _imagen_grande(self, master, receta) -> None:
+        """La imagen es clicable: un clic la abre a pantalla completa."""
         if receta.imagen_pasos_path and Path(receta.imagen_pasos_path).exists():
             try:
                 imagen, tamano = _imagen_ajustada(receta.imagen_pasos_path, *TAMANO_IMAGEN_LISTA)
                 ctk_imagen = ctk.CTkImage(light_image=imagen, dark_image=imagen, size=tamano)
-                ctk.CTkLabel(master, image=ctk_imagen, text="").pack(expand=True)
-                return True
+                etiqueta = ctk.CTkLabel(master, image=ctk_imagen, text="", cursor="hand2")
+                etiqueta.pack(expand=True)
+                # CTkLabel.bind() ya reenvía el enlace a sus widgets internos
+                # (el Label y el Canvas reales de tkinter que dibujan la
+                # imagen) — no hay que volver a enlazarlos a mano: hacerlo
+                # duplicaba el callback y abría el diálogo dos veces por clic.
+                etiqueta.bind("<Button-1>", lambda _e, r=receta: ImagenCompletaDialog(self, r))
+                return
             except Exception:
                 pass
         ctk.CTkLabel(
@@ -126,7 +129,6 @@ class RecetasView(ctk.CTkFrame):
             width=TAMANO_IMAGEN_LISTA[0], height=TAMANO_IMAGEN_LISTA[1], font=(theme.FONT_FAMILY, 16),
             text_color=theme.TEXT_SECONDARY,
         ).pack(expand=True)
-        return False
 
     def _bloque_texto(self, master, titulo, items, numerado=False):
         ctk.CTkLabel(
