@@ -317,6 +317,11 @@ class CobroDialog(ctk.CTkToplevel):
 
         if self.metodo_seleccionado == "tarjeta":
             _, total = self.carrito.calcular_descuento_y_total(descuento_pct)
+            # Suelta el grab modal de este diálogo antes de abrir el de
+            # PagoTarjetaDialog encima: dos grabs activos al mismo tiempo
+            # (uno por ventana) puede colgar por completo la aplicación en
+            # algunas instalaciones de Tcl/Tk en macOS.
+            self.grab_release()
             PagoTarjetaDialog(
                 self, total,
                 on_resultado=lambda *resultado: self._resultado_pago_tarjeta(descuento_pct, *resultado),
@@ -328,8 +333,10 @@ class CobroDialog(ctk.CTkToplevel):
     def _resultado_pago_tarjeta(self, descuento_pct, aprobado, payment_id, status, mensaje):
         if not aprobado:
             # Pago rechazado, cancelado o con error: la venta NO se registra.
-            # El diálogo de cobro sigue abierto para reintentar o cambiar a efectivo.
+            # El diálogo de cobro sigue abierto para reintentar o cambiar a
+            # efectivo, así que recupera su grab modal.
             self.label_error.configure(text=mensaje)
+            self.grab_set()
             return
         self._registrar_venta(descuento_pct, "tarjeta", mp_payment_id=payment_id, mp_status=status)
 
