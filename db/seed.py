@@ -1,6 +1,7 @@
 """Datos de ejemplo para poder probar la app sin capturar todo a mano."""
 import sqlite3
 
+from config import ASSETS_DIR
 from utils.security import hash_password
 
 
@@ -86,8 +87,60 @@ def seed_productos_base(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO productos_base (nombre, precio_base) VALUES ('Waffle', 50.0)")
 
 
+def seed_recetas(conn: sqlite3.Connection) -> None:
+    """Las 5 recetas del negocio (masa, crepas, waffles, frapés, boba), con
+    su imagen de paso a paso (ya versionada en assets/recetas_imagenes/) y
+    los pasos detallados que dio el negocio."""
+    existentes = conn.execute("SELECT COUNT(*) FROM recetas").fetchone()[0]
+    if existentes > 0:
+        return
+
+    imagenes_dir = ASSETS_DIR / "recetas_imagenes"
+    recetas = [
+        ("Masa", "5a08c93993af462fb02c7e863223f8c0.png", """Intégra 3 huevos dentro de un bowl
+Vierte 200 ml de agua
+Añade una tapa de vainilla
+Añade los 100 gramos de harina integral y mezcla muy bien hasta que no haya grumos
+Añade el restante de harina de trigo y mezcla muy bien
+Ve añadiendo el restante de agua poco a poco hasta que la mezcla quede en la textura deseada
+Añade la mantequilla derretida y mézclala
+Vierte la mezcla dentro de un recipiente y mantenla en refrigeración"""),
+        ("Crepas", "3b68d763c7984946a03b65eac2666061.png", """Vierte un cucharón de mezcla a la crepera
+Dale la forma adecuada a la crepa
+Dobla por la mitad la crepa
+Añade la base elegida por el cliente
+Añade la porción de fruta en el centro de la crepa
+Cierra la crepa por ambos lados
+Con cuidado pon la crepa sobre el empaque
+Decora y entrega"""),
+        ("Waffles", "55e87cc3225b4b7d83583e94e0f0ac91.png", """Vierte la mezcla para waffles dentro de la Wafflera
+Añade la base por encima
+Añade la fruta y los complementos bien esparcidos en la superficie del waffle"""),
+        ("Frapés", "c6cab0b143ae4ec486e6d084e5f999c7.png", """Llena el vaso de hielos al tope
+Añade los polvos base de la bebida
+Añade ingredientes (en el caso del Frappe de Oreo y Mazapán)
+Añade los líquidos (6 oz en total)
+Licúa hasta obtener la textura
+Vierte la mezcla en un vaso
+Añade crema batida
+Añade decoración"""),
+        ("Boba", "2a47142fc3254635810400be6da44865.png", """Agrega dos cucharadas grandes de polvo
+Mezcla hasta eliminar grumos con agua caliente
+Agrega la tapioca
+Rellena con la leche de la elección del cliente
+Introduce el vaso dentro de la selladora
+Entrega"""),
+    ]
+    for nombre, archivo, pasos in recetas:
+        conn.execute(
+            "INSERT INTO recetas (nombre_producto, imagen_pasos_path, pasos) VALUES (?, ?, ?)",
+            (nombre, str(imagenes_dir / archivo), pasos),
+        )
+
+
 def seed_all(conn: sqlite3.Connection) -> None:
     seed_usuarios(conn)
     seed_insumos(conn)
     seed_bebidas(conn)
     seed_productos_base(conn)
+    seed_recetas(conn)
