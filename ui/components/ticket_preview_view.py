@@ -29,8 +29,13 @@ class TicketPreviewDialog(ctk.CTkToplevel):
         self.geometry("760x680" if datos_comanda else "440x680")
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
-        self.grab_set()
         self._build()
+        # Igual que en CobroDialog: pedir el grab antes de que la ventana
+        # termine de dibujarse puede dejarla con tamaño roto e invisible en
+        # macOS, congelando la app entera porque el grab modal ya está
+        # activo en una ventana con la que no se puede interactuar.
+        self.update_idletasks()
+        self.after(10, self.grab_set)
 
         if intentar_imprimir_automaticamente:
             self._imprimir()

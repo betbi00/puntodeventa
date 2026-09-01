@@ -129,8 +129,14 @@ class CobroDialog(ctk.CTkToplevel):
         self.geometry("420x820")
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
-        self.grab_set()
         self._build()
+        # grab_set() antes de que la ventana termine de dibujarse puede dejarla
+        # con tamaño roto (1x33 en vez de 420x820) en macOS: existe pero es
+        # invisible, y como ya tiene el grab modal, ningún clic llega a
+        # ninguna ventana — la app entera parece congelada. update_idletasks()
+        # fuerza a que la geometría ya esté aplicada antes de pedir el grab.
+        self.update_idletasks()
+        self.after(10, self.grab_set)
 
     def _build(self):
         ctk.CTkLabel(

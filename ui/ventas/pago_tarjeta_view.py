@@ -30,12 +30,18 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self._cancelar)
-        self.grab_set()
 
         if mp.esta_configurado():
             self._build_real()
         else:
             self._build_simulador()
+
+        # Igual que en CobroDialog: pedir el grab antes de que la ventana
+        # termine de dibujarse puede dejarla con tamaño roto e invisible en
+        # macOS, congelando la app entera porque el grab modal ya está
+        # activo en una ventana con la que no se puede interactuar.
+        self.update_idletasks()
+        self.after(10, self.grab_set)
 
     # --- Modo real: Mercado Pago Point configurado ---
     def _build_real(self):
