@@ -343,5 +343,12 @@ class CobroDialog(ctk.CTkToplevel):
         except vs.ValidationError as e:
             self.label_error.configure(text=str(e))
             return
+        # No abrir el siguiente diálogo modal (vista previa del ticket) en el
+        # mismo instante en que se destruye este: en macOS eso deja el grab
+        # de la ventana modal en un estado inconsistente y congela la app
+        # (los clics dejan de llegar a cualquier ventana). Se destruye este
+        # diálogo y se difiere la continuación al próximo ciclo de eventos.
+        master = self.master
+        self.grab_release()
         self.destroy()
-        self.on_completada(venta_id)
+        master.after(50, lambda: self.on_completada(venta_id))

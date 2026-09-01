@@ -123,8 +123,14 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
         if self._resuelto:
             return
         self._resuelto = True
+        # Igual que en CobroDialog: diferir la continuación evita que en
+        # macOS se abra otro diálogo modal en el mismo instante en que este
+        # se destruye, lo cual deja el grab en un estado inconsistente y
+        # congela la app.
+        master = self.master
+        self.grab_release()
         self.destroy()
-        self.on_resultado(aprobado, payment_id, status, mensaje)
+        master.after(50, lambda: self.on_resultado(aprobado, payment_id, status, mensaje))
 
     def _cancelar(self):
         if self._resuelto:
@@ -132,5 +138,7 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
         self._resuelto = True
         if self._order_id:
             mp.cancelar_orden(self._order_id)
+        master = self.master
+        self.grab_release()
         self.destroy()
-        self.on_resultado(False, None, "canceled_by_user", "Cobro cancelado")
+        master.after(50, lambda: self.on_resultado(False, None, "canceled_by_user", "Cobro cancelado"))
