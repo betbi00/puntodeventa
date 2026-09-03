@@ -126,12 +126,12 @@ class CobroDialog(ctk.CTkToplevel):
         self.botones_promocion = {}  # promocion_id -> CTkButton
 
         self.title("Confirmar cobro")
-        self.geometry("420x820")
+        self.geometry("420x700")
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self._build()
         # grab_set() antes de que la ventana termine de dibujarse puede dejarla
-        # con tamaño roto (1x33 en vez de 420x820) en macOS: existe pero es
+        # con tamaño roto (1x33 en vez de 420x700) en macOS: existe pero es
         # invisible, y como ya tiene el grab modal, ningún clic llega a
         # ninguna ventana — la app entera parece congelada. update_idletasks()
         # fuerza a que la geometría ya esté aplicada antes de pedir el grab.
