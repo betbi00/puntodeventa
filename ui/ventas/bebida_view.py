@@ -9,9 +9,9 @@ from ui import theme
 COLUMNAS = 3
 
 
-class BebidaCatalogo(ctk.CTkScrollableFrame):
+class BebidaCatalogo(ctk.CTkFrame):
     def __init__(self, master, on_agregar):
-        super().__init__(master, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
+        super().__init__(master, fg_color="transparent")
         self.on_agregar = on_agregar
         for col in range(COLUMNAS):
             self.grid_columnconfigure(col, weight=1)
