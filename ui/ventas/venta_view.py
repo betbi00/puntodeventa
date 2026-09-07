@@ -1,6 +1,6 @@
-"""Pantalla principal del punto de venta: catálogo (Crepas y Waffles en una
-sola pantalla dividida, y Bebidas aparte) a la izquierda, carrito a la
-derecha."""
+"""Pantalla principal del punto de venta: catálogo (Crepas y Waffles y
+Bebidas, todo junto en una sola pantalla con scroll) a la izquierda,
+carrito a la derecha."""
 import customtkinter as ctk
 
 from services import impresion_service as imp
@@ -13,6 +13,7 @@ from ui.ventas.carrito_cobro_view import CarritoPanel
 from ui.ventas.producto_builder_view import ProductoBuilderView
 
 ICONOS_PRODUCTO_BASE = {"crepa": "🥞", "waffle": "🧇"}
+ALTO_FILA_PRODUCTOS_BASE = 260
 
 
 class VentaView(ctk.CTkFrame):
@@ -26,33 +27,32 @@ class VentaView(ctk.CTkFrame):
         left = ctk.CTkFrame(self, fg_color="transparent")
         left.pack(side="left", fill="both", expand=True, padx=(0, 16))
 
-        tabview = ctk.CTkTabview(
-            left, fg_color=theme.BG_CARD,
-            segmented_button_fg_color=theme.BG_INPUT,
-            segmented_button_selected_color=theme.PINK,
-            segmented_button_selected_hover_color=theme.PINK_HOVER,
-            segmented_button_unselected_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY,
-        )
-        tabview.pack(fill="both", expand=True)
+        catalogo = ctk.CTkScrollableFrame(left, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
+        catalogo.pack(fill="both", expand=True)
 
-        tab_productos = tabview.add("Crepas y Waffles")
-        tab_bebidas = tabview.add("Bebidas")
+        ctk.CTkLabel(
+            catalogo, text="Crepas y Waffles", anchor="w",
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(anchor="w", padx=20, pady=(20, 8))
+        self._fila_productos_base(catalogo)
 
-        self._build_tab_productos_base(tab_productos)
-        BebidaCatalogo(tab_bebidas, on_agregar=self._agregar_item).pack(fill="both", expand=True)
+        ctk.CTkLabel(
+            catalogo, text="Bebidas", anchor="w",
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(anchor="w", padx=20, pady=(24, 8))
+        BebidaCatalogo(catalogo, on_agregar=self._agregar_item).pack(fill="x", padx=20, pady=(0, 20))
 
         self.carrito_panel = CarritoPanel(
             self, self.carrito, self.current_user, on_venta_completada=self._venta_completada,
         )
         self.carrito_panel.pack(side="right", fill="y")
 
-    def _build_tab_productos_base(self, tab):
-        """Una sola pantalla partida en dos mitades: Crepa a la izquierda,
-        Waffle a la derecha. Tocar cualquiera abre el mismo constructor de
-        siempre (ProductoBuilderView)."""
-        container = ctk.CTkFrame(tab, fg_color="transparent")
-        container.pack(fill="both", expand=True, padx=20, pady=20)
+    def _fila_productos_base(self, master):
+        """Crepa a la izquierda, Waffle a la derecha. Tocar cualquiera abre
+        el mismo constructor de siempre (ProductoBuilderView)."""
+        container = ctk.CTkFrame(master, fg_color="transparent", height=ALTO_FILA_PRODUCTOS_BASE)
+        container.pack(fill="x", padx=20)
+        container.pack_propagate(False)
         container.grid_columnconfigure(0, weight=1)
         container.grid_columnconfigure(1, weight=1)
         container.grid_rowconfigure(0, weight=1)
