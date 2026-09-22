@@ -18,18 +18,19 @@ TAMANO_MUNECO_BEBIDA = 72
 # dibujo, distinto tono de contorno) para que cada sabor se distinga a
 # simple vista en vez de repetir siempre el mismo color.
 VARIANTES_DISPONIBLES = {
-    ("boba", "taro"), ("boba", "matcha"), ("boba", "chai"),
+    ("boba", "taro"), ("boba", "matcha"), ("boba", "chai"), ("boba", "fruta"),
     ("cafe", "taro"), ("cafe", "matcha"), ("cafe", "chai"),
-    ("cafe", "oreo"), ("cafe", "mazapan"), ("cafe", "fruta"),
+    ("cafe", "oreo"), ("cafe", "mazapan"),
 }
 
 
 def _muneco_bebida(nombre_bebida: str) -> str:
     """Las bobas usan como base el muñeco de boba; el resto (Frappés) el
     del vaso de café — pero coloreado distinto según el sabor, para que
-    no se vean todas idénticas."""
+    no se vean todas idénticas. El Frappé de agua con pulpa de fruta usa
+    la forma de vaso de boba (transparente, con domo): la del vaso de
+    café para llevar no encajaba con una bebida fría de fruta."""
     nombre = nombre_bebida.strip().lower()
-    base = "boba" if nombre.startswith("boba") else "cafe"
 
     if "taro" in nombre:
         sabor = "taro"
@@ -45,6 +46,8 @@ def _muneco_bebida(nombre_bebida: str) -> str:
         sabor = "fruta"
     else:
         sabor = None
+
+    base = "boba" if (nombre.startswith("boba") or sabor == "fruta") else "cafe"
 
     if sabor and (base, sabor) in VARIANTES_DISPONIBLES:
         return f"{base}_{sabor}.png"
