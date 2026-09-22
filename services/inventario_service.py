@@ -23,9 +23,21 @@ def listar_insumos(tipo=None, incluir_inactivos: bool = True) -> list[Insumo]:
     return insumo_model.listar(tipo=tipo, incluir_inactivos=incluir_inactivos)
 
 
+def _validar_categoria_armado(tipo: str, categoria_armado: Optional[str]) -> Optional[str]:
+    categoria_armado = (categoria_armado or "").strip() or None
+    if categoria_armado is None:
+        return None
+    if tipo != "ingrediente":
+        raise ValidationError("Solo un ingrediente puede tener categoría de armado")
+    if categoria_armado not in insumo_model.CATEGORIAS_ARMADO_VALIDAS:
+        raise ValidationError(f"Categoría de armado inválida: {categoria_armado}")
+    return categoria_armado
+
+
 def crear_insumo(
     nombre: str, tipo: str, aplica_a: str, precio_extra: float,
     unidad_medida: str, stock_inicial: float, stock_minimo: float,
+    categoria_armado: Optional[str] = None,
 ) -> Insumo:
     nombre = nombre.strip()
     if not nombre:
@@ -41,12 +53,15 @@ def crear_insumo(
         precio_extra = 0
     elif precio_extra < 0:
         raise ValidationError("El precio extra no puede ser negativo")
-    return insumo_model.crear(nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_inicial, stock_minimo)
+    categoria_armado = _validar_categoria_armado(tipo, categoria_armado)
+    return insumo_model.crear(
+        nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_inicial, stock_minimo, categoria_armado,
+    )
 
 
 def actualizar_insumo(
     insumo_id: int, nombre: str, aplica_a: str, precio_extra: float,
-    unidad_medida: str, stock_minimo: float,
+    unidad_medida: str, stock_minimo: float, categoria_armado: Optional[str] = None,
 ) -> None:
     nombre = nombre.strip()
     if not nombre:
@@ -62,7 +77,10 @@ def actualizar_insumo(
         precio_extra = 0
     elif precio_extra < 0:
         raise ValidationError("El precio extra no puede ser negativo")
-    insumo_model.actualizar_datos(insumo_id, nombre, aplica_a, precio_extra, unidad_medida, stock_minimo)
+    categoria_armado = _validar_categoria_armado(insumo.tipo, categoria_armado)
+    insumo_model.actualizar_datos(
+        insumo_id, nombre, aplica_a, precio_extra, unidad_medida, stock_minimo, categoria_armado,
+    )
 
 
 def set_activo_insumo(insumo_id: int, activo: bool) -> None:

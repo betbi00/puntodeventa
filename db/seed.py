@@ -22,59 +22,88 @@ def seed_usuarios(conn: sqlite3.Connection) -> None:
 
 
 def seed_insumos(conn: sqlite3.Connection) -> None:
-    """Ingredientes de crepa/waffle + boba + perlas explosivas, con stock de ejemplo."""
+    """Ingredientes de crepa/waffle + boba + perlas explosivas, con stock de
+    ejemplo. Los ingredientes del armador guiado (categoria_armado) siguen
+    el menú oficial: base, fruta, complemento y decoración."""
     existentes = conn.execute("SELECT COUNT(*) FROM insumos").fetchone()[0]
     if existentes > 0:
         return
 
+    # (nombre, aplica_a, categoria_armado, precio_extra, stock, stock_min)
     ingredientes = [
-        ("Nutella", "ambos", 15.0, 25, 5),
-        ("Fresa", "ambos", 8.0, 20, 5),
-        ("Plátano", "ambos", 6.0, 20, 5),
-        ("Cajeta", "ambos", 10.0, 20, 5),
-        ("Lechera", "ambos", 8.0, 20, 5),
-        ("Helado de vainilla", "ambos", 18.0, 15, 5),
-        ("Chispas de chocolate", "ambos", 7.0, 25, 8),
-        ("Coco rallado", "ambos", 6.0, 15, 5),
-        ("Nuez picada", "ambos", 12.0, 15, 5),
-        ("Queso crema", "crepa", 10.0, 15, 5),
+        ("Nutella", "ambos", "base", 15.0, 25, 5),
+        ("Philadelphia", "ambos", "base", 10.0, 15, 5),
+        ("Fresa", "ambos", "fruta", 8.0, 20, 5),
+        ("Plátano", "ambos", "fruta", 6.0, 20, 5),
+        ("Durazno", "ambos", "fruta", 0.0, 20, 5),  # precio pendiente de definir
+        ("Lechera", "ambos", "complemento", 8.0, 20, 5),
+        ("Azúcar glass", "ambos", "decoracion", 0.0, 20, 5),  # precio pendiente de definir
+        # Ya no están en el menú oficial, pero se conservan en inventario
+        # (sin categoria_armado: no aparecen en el armador de Crepa/Waffle).
+        ("Cajeta", "ambos", None, 10.0, 20, 5),
+        ("Helado de vainilla", "ambos", None, 18.0, 15, 5),
+        ("Chispas de chocolate", "ambos", None, 7.0, 25, 8),
+        ("Coco rallado", "ambos", None, 6.0, 15, 5),
+        ("Nuez picada", "ambos", None, 12.0, 15, 5),
     ]
-    for nombre, aplica_a, precio_extra, stock, stock_min in ingredientes:
+    for nombre, aplica_a, categoria_armado, precio_extra, stock, stock_min in ingredientes:
         conn.execute(
-            """INSERT INTO insumos (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo)
-               VALUES (?, 'ingrediente', ?, ?, 'porcion', ?, ?)""",
-            (nombre, aplica_a, precio_extra, stock, stock_min),
+            """INSERT INTO insumos
+               (nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo)
+               VALUES (?, 'ingrediente', ?, ?, ?, 'porcion', ?, ?)""",
+            (nombre, aplica_a, categoria_armado, precio_extra, stock, stock_min),
         )
 
-    extras_bebida = [
-        ("Boba", "boba", 40, 10),
-        ("Perlas explosivas", "perla_explosiva", 25, 8),
-    ]
-    for nombre, tipo, stock, stock_min in extras_bebida:
+    # Pulpas para el Frappé de agua con pulpa de fruta — todavía no están
+    # ligadas a un modal de extras propio (eso queda pendiente), pero ya se
+    # pueden llevar en inventario.
+    pulpas = ["Pulpa de maracuyá", "Pulpa de mango", "Pulpa de fresa"]
+    for nombre in pulpas:
         conn.execute(
             """INSERT INTO insumos (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo)
-               VALUES (?, ?, 'ambos', 0, 'porcion', ?, ?)""",
-            (nombre, tipo, stock, stock_min),
+               VALUES (?, 'ingrediente', 'ambos', 0, 'porcion', 20, 5)""",
+            (nombre,),
+        )
+
+    # (nombre, tipo, stock, stock_min, activo) — las perlas explosivas ya no
+    # están en el menú oficial de Bobas, se siembran desactivadas.
+    extras_bebida = [
+        ("Boba", "boba", 40, 10, 1),
+        ("Perlas explosivas", "perla_explosiva", 25, 8, 0),
+    ]
+    for nombre, tipo, stock, stock_min, activo in extras_bebida:
+        conn.execute(
+            """INSERT INTO insumos (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo, activo)
+               VALUES (?, ?, 'ambos', 0, 'porcion', ?, ?, ?)""",
+            (nombre, tipo, stock, stock_min, activo),
         )
 
 
 def seed_bebidas(conn: sqlite3.Connection) -> None:
+    """Bobas y Frappés del menú oficial. Las Bobas ya tienen precio; los
+    Frappés todavía no (se siembran inactivos, con precio de $1.00 como
+    marcador claro de "falta definir", hasta que el negocio los dé de alta
+    con su precio real)."""
     existentes = conn.execute("SELECT COUNT(*) FROM bebidas").fetchone()[0]
     if existentes > 0:
         return
 
+    # (nombre, precio, stock, stock_min, activo)
     bebidas = [
-        ("Taro Milk Tea", 65.0, 20, 5),
-        ("Matcha Latte", 70.0, 20, 5),
-        ("Mango Tea", 58.0, 20, 5),
-        ("Café Boba", 60.0, 20, 5),
-        ("Brown Sugar Milk", 62.0, 20, 5),
-        ("Chocolate Milk Tea", 63.0, 20, 5),
+        ("Boba Taro", 65.0, 20, 5, 1),
+        ("Boba Matcha", 70.0, 20, 5, 1),
+        ("Boba Chai", 1.0, 20, 5, 0),
+        ("Frappé Taro", 1.0, 20, 5, 0),
+        ("Frappé Matcha", 1.0, 20, 5, 0),
+        ("Frappé Chai", 1.0, 20, 5, 0),
+        ("Frappé Oreo", 1.0, 20, 5, 0),
+        ("Frappé Mazapán", 1.0, 20, 5, 0),
+        ("Frappé de agua con pulpa de fruta", 1.0, 20, 5, 0),
     ]
-    for nombre, precio, stock, stock_min in bebidas:
+    for nombre, precio, stock, stock_min, activo in bebidas:
         conn.execute(
-            "INSERT INTO bebidas (nombre, precio, stock_actual, stock_minimo) VALUES (?, ?, ?, ?)",
-            (nombre, precio, stock, stock_min),
+            "INSERT INTO bebidas (nombre, precio, stock_actual, stock_minimo, activo) VALUES (?, ?, ?, ?, ?)",
+            (nombre, precio, stock, stock_min, activo),
         )
 
 
@@ -136,6 +165,77 @@ Entrega"""),
             "INSERT INTO recetas (nombre_producto, imagen_pasos_path, pasos) VALUES (?, ?, ?)",
             (nombre, str(imagenes_dir / archivo), pasos),
         )
+
+
+def _insumo_existe(conn: sqlite3.Connection, nombre: str) -> bool:
+    return conn.execute("SELECT 1 FROM insumos WHERE nombre = ?", (nombre,)).fetchone() is not None
+
+
+def _bebida_existe(conn: sqlite3.Connection, nombre: str) -> bool:
+    return conn.execute("SELECT 1 FROM bebidas WHERE nombre = ?", (nombre,)).fetchone() is not None
+
+
+def actualizar_menu_oficial(conn: sqlite3.Connection) -> None:
+    """A diferencia de seed_insumos/seed_bebidas (que solo siembran una
+    base de datos vacía), esto ajusta un catálogo que ya tenía datos para
+    que coincida con el menú oficial que dio el negocio — se ejecuta en
+    cada arranque y cada paso valida si ya se aplicó antes, para poder
+    correrse las veces que sea sin duplicar ni repetir nada."""
+    # --- Insumos: renombrar y clasificar por paso del armado guiado ---
+    if _insumo_existe(conn, "Queso crema") and not _insumo_existe(conn, "Philadelphia"):
+        conn.execute(
+            "UPDATE insumos SET nombre = 'Philadelphia', aplica_a = 'ambos', categoria_armado = 'base' "
+            "WHERE nombre = 'Queso crema'"
+        )
+
+    for nombre, categoria_armado in (
+        ("Nutella", "base"), ("Fresa", "fruta"), ("Plátano", "fruta"), ("Lechera", "complemento"),
+    ):
+        conn.execute(
+            "UPDATE insumos SET categoria_armado = ? WHERE nombre = ? AND categoria_armado IS NULL",
+            (categoria_armado, nombre),
+        )
+
+    if not _insumo_existe(conn, "Durazno"):
+        conn.execute(
+            """INSERT INTO insumos (nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo)
+               VALUES ('Durazno', 'ingrediente', 'ambos', 'fruta', 0, 'porcion', 20, 5)"""
+        )
+    if not _insumo_existe(conn, "Azúcar glass"):
+        conn.execute(
+            """INSERT INTO insumos (nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo)
+               VALUES ('Azúcar glass', 'ingrediente', 'ambos', 'decoracion', 0, 'porcion', 20, 5)"""
+        )
+    for nombre in ("Pulpa de maracuyá", "Pulpa de mango", "Pulpa de fresa"):
+        if not _insumo_existe(conn, nombre):
+            conn.execute(
+                """INSERT INTO insumos (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo)
+                   VALUES (?, 'ingrediente', 'ambos', 0, 'porcion', 20, 5)""",
+                (nombre,),
+            )
+
+    conn.execute("UPDATE insumos SET activo = 0 WHERE nombre = 'Perlas explosivas' AND activo = 1")
+
+    # --- Bebidas: renombrar Bobas, agregar Frappés, desactivar lo que ya no está ---
+    if _bebida_existe(conn, "Taro Milk Tea") and not _bebida_existe(conn, "Boba Taro"):
+        conn.execute("UPDATE bebidas SET nombre = 'Boba Taro' WHERE nombre = 'Taro Milk Tea'")
+    if _bebida_existe(conn, "Matcha Latte") and not _bebida_existe(conn, "Boba Matcha"):
+        conn.execute("UPDATE bebidas SET nombre = 'Boba Matcha' WHERE nombre = 'Matcha Latte'")
+
+    nuevas_bebidas = [
+        "Boba Chai", "Frappé Taro", "Frappé Matcha", "Frappé Chai",
+        "Frappé Oreo", "Frappé Mazapán", "Frappé de agua con pulpa de fruta",
+    ]
+    for nombre in nuevas_bebidas:
+        if not _bebida_existe(conn, nombre):
+            conn.execute(
+                "INSERT INTO bebidas (nombre, precio, stock_actual, stock_minimo, activo) "
+                "VALUES (?, 1.0, 20, 5, 0)",
+                (nombre,),
+            )
+
+    for nombre in ("Mango Tea", "Café Boba", "Brown Sugar Milk", "Chocolate Milk Tea"):
+        conn.execute("UPDATE bebidas SET activo = 0 WHERE nombre = ? AND activo = 1", (nombre,))
 
 
 def seed_all(conn: sqlite3.Connection) -> None:
