@@ -4,7 +4,7 @@ from typing import Optional
 
 from db.connection import get_connection
 
-TIPOS_VALIDOS = ("ingrediente", "boba", "perla_explosiva", "desechable")
+TIPOS_VALIDOS = ("ingrediente", "boba", "perla_explosiva", "desechable", "pulpa")
 APLICA_A_VALIDOS = ("crepa", "waffle", "ambos")
 # Paso del armado guiado de Crepa/Waffle en el que aparece un insumo
 # tipo='ingrediente' (ver categoria_armado en schema.sql). None/'' = no

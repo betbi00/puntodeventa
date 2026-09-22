@@ -18,6 +18,7 @@ MIGRACIONES_COLUMNAS = [
     ("bebidas", "stock_minimo", "REAL NOT NULL DEFAULT 0"),
     ("recetas", "imagen_pasos_path", "TEXT"),
     ("insumos", "categoria_armado", "TEXT"),
+    ("bebidas", "tipo_extra", "TEXT"),
 ]
 
 
@@ -39,29 +40,42 @@ def _aplicar_migraciones_columnas(conn) -> None:
 
 def _migrar_check_insumos_tipo(conn) -> None:
     """SQLite no permite modificar un CHECK constraint con ALTER TABLE: si
-    la tabla insumos ya existe con la restricción vieja (sin 'desechable'),
-    hay que reconstruirla — renombrar, crear de nuevo con el esquema
-    actual, copiar los datos, y borrar la vieja. Se desactivan las llaves
-    foráneas mientras dura la reconstrucción para no chocar con las filas
-    de detalle_venta_insumos/movimientos_inventario que ya apuntan a estos
-    insumos."""
+    la tabla insumos ya existe con la restricción vieja (sin 'pulpa'), hay
+    que reconstruirla — renombrar, crear de nuevo con el esquema actual,
+    copiar los datos, y borrar la vieja. Se desactivan las llaves foráneas
+    mientras dura la reconstrucción para no chocar con las filas de
+    detalle_venta_insumos/movimientos_inventario que ya apuntan a estos
+    insumos.
+
+    IMPORTANTE: cualquier columna que se agregue a insumos después de esta
+    función (vía MIGRACIONES_COLUMNAS) debe agregarse también aquí abajo,
+    tanto al CREATE TABLE como al INSERT...SELECT — si no, esta
+    reconstrucción la borra silenciosamente en cualquier base que todavía
+    necesite este cambio de CHECK (ya pasó una vez con categoria_armado)."""
     if not _tabla_existe(conn, "insumos"):
         return  # tabla nueva: schema.sql ya la crea con el CHECK actualizado
 
     definicion = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'insumos'"
     ).fetchone()["sql"]
-    if "desechable" in definicion:
+    if "pulpa" in definicion:
         return  # ya está actualizada
 
     conn.execute("PRAGMA foreign_keys = OFF")
+    # Por default, ALTER TABLE ... RENAME también reescribe las cláusulas
+    # REFERENCES de OTRAS tablas (detalle_venta_insumos, movimientos_inventario)
+    # para que apunten al nombre nuevo ("insumos_viejo") — como el nombre
+    # "insumos" se vuelve a usar segundos después para la tabla reconstruida,
+    # esas otras tablas se quedarían apuntando a una tabla que ya no existe.
+    # legacy_alter_table=ON desactiva esa reescritura automática.
+    conn.execute("PRAGMA legacy_alter_table = ON")
     try:
         conn.execute("ALTER TABLE insumos RENAME TO insumos_viejo")
         conn.execute("""
             CREATE TABLE insumos (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
                 nombre          TEXT NOT NULL,
-                tipo            TEXT NOT NULL CHECK (tipo IN ('ingrediente', 'boba', 'perla_explosiva', 'desechable')),
+                tipo            TEXT NOT NULL CHECK (tipo IN ('ingrediente', 'boba', 'perla_explosiva', 'desechable', 'pulpa')),
                 aplica_a        TEXT CHECK (aplica_a IN ('crepa', 'waffle', 'ambos')) DEFAULT 'ambos',
                 categoria_armado TEXT,
                 precio_extra    REAL NOT NULL DEFAULT 0,
@@ -80,6 +94,7 @@ def _migrar_check_insumos_tipo(conn) -> None:
         """)
         conn.execute("DROP TABLE insumos_viejo")
     finally:
+        conn.execute("PRAGMA legacy_alter_table = OFF")
         conn.execute("PRAGMA foreign_keys = ON")
 
 
@@ -100,6 +115,7 @@ def _migrar_movimientos_inventario_bebida(conn) -> None:
         return  # ya está actualizada
 
     conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("PRAGMA legacy_alter_table = ON")  # ver nota en _migrar_check_insumos_tipo
     try:
         conn.execute("ALTER TABLE movimientos_inventario RENAME TO movimientos_inventario_viejo")
         conn.execute("""
@@ -125,6 +141,7 @@ def _migrar_movimientos_inventario_bebida(conn) -> None:
         """)
         conn.execute("DROP TABLE movimientos_inventario_viejo")
     finally:
+        conn.execute("PRAGMA legacy_alter_table = OFF")
         conn.execute("PRAGMA foreign_keys = ON")
 
 

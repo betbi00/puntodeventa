@@ -4,12 +4,17 @@ from typing import Optional
 
 from db.connection import get_connection
 
+# Qué extra se le ofrece al cliente al agregar la bebida al carrito:
+# 'boba_perlas' (varias a la vez) o 'pulpa' (una sola). None = sin extras.
+TIPOS_EXTRA_VALIDOS = ("boba_perlas", "pulpa")
+
 
 @dataclass
 class Bebida:
     id: int
     nombre: str
     precio: float
+    tipo_extra: Optional[str]
     stock_actual: float
     stock_minimo: float
     activo: bool
@@ -18,6 +23,7 @@ class Bebida:
     def from_row(row) -> "Bebida":
         return Bebida(
             id=row["id"], nombre=row["nombre"], precio=row["precio"],
+            tipo_extra=row["tipo_extra"],
             stock_actual=row["stock_actual"], stock_minimo=row["stock_minimo"],
             activo=bool(row["activo"]),
         )
@@ -43,21 +49,26 @@ def get_by_id(bebida_id: int) -> Optional[Bebida]:
     return Bebida.from_row(row) if row else None
 
 
-def crear(nombre: str, precio: float, stock_inicial: float = 0, stock_minimo: float = 0) -> Bebida:
+def crear(
+    nombre: str, precio: float, stock_inicial: float = 0, stock_minimo: float = 0,
+    tipo_extra: Optional[str] = None,
+) -> Bebida:
     with get_connection() as conn:
         cursor = conn.execute(
-            "INSERT INTO bebidas (nombre, precio, stock_actual, stock_minimo) VALUES (?, ?, ?, ?)",
-            (nombre, precio, stock_inicial, stock_minimo),
+            "INSERT INTO bebidas (nombre, precio, tipo_extra, stock_actual, stock_minimo) VALUES (?, ?, ?, ?, ?)",
+            (nombre, precio, tipo_extra, stock_inicial, stock_minimo),
         )
         nuevo_id = cursor.lastrowid
     return get_by_id(nuevo_id)
 
 
-def actualizar(bebida_id: int, nombre: str, precio: float, stock_minimo: float) -> None:
+def actualizar(
+    bebida_id: int, nombre: str, precio: float, stock_minimo: float, tipo_extra: Optional[str] = None,
+) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE bebidas SET nombre = ?, precio = ?, stock_minimo = ? WHERE id = ?",
-            (nombre, precio, stock_minimo, bebida_id),
+            "UPDATE bebidas SET nombre = ?, precio = ?, stock_minimo = ?, tipo_extra = ? WHERE id = ?",
+            (nombre, precio, stock_minimo, tipo_extra, bebida_id),
         )
 
 
