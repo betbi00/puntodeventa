@@ -6,6 +6,10 @@ from db.connection import get_connection
 
 TIPOS_VALIDOS = ("ingrediente", "boba", "perla_explosiva", "desechable")
 APLICA_A_VALIDOS = ("crepa", "waffle", "ambos")
+# Paso del armado guiado de Crepa/Waffle en el que aparece un insumo
+# tipo='ingrediente' (ver categoria_armado en schema.sql). None/'' = no
+# aparece en el armador.
+CATEGORIAS_ARMADO_VALIDAS = ("base", "fruta", "complemento", "decoracion")
 
 
 @dataclass
@@ -14,6 +18,7 @@ class Insumo:
     nombre: str
     tipo: str
     aplica_a: str
+    categoria_armado: Optional[str]
     precio_extra: float
     unidad_medida: str
     stock_actual: float
@@ -27,6 +32,7 @@ class Insumo:
             nombre=row["nombre"],
             tipo=row["tipo"],
             aplica_a=row["aplica_a"],
+            categoria_armado=row["categoria_armado"],
             precio_extra=row["precio_extra"],
             unidad_medida=row["unidad_medida"],
             stock_actual=row["stock_actual"],
@@ -72,13 +78,14 @@ def get_by_id(insumo_id: int) -> Optional[Insumo]:
 def crear(
     nombre: str, tipo: str, aplica_a: str, precio_extra: float,
     unidad_medida: str, stock_inicial: float, stock_minimo: float,
+    categoria_armado: Optional[str] = None,
 ) -> Insumo:
     with get_connection() as conn:
         cursor = conn.execute(
             """INSERT INTO insumos
-               (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
-            (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_inicial, stock_minimo),
+               (nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_inicial, stock_minimo),
         )
         nuevo_id = cursor.lastrowid
     return get_by_id(nuevo_id)
@@ -86,16 +93,17 @@ def crear(
 
 def actualizar_datos(
     insumo_id: int, nombre: str, aplica_a: str, precio_extra: float,
-    unidad_medida: str, stock_minimo: float,
+    unidad_medida: str, stock_minimo: float, categoria_armado: Optional[str] = None,
 ) -> None:
     """Actualiza los datos descriptivos del insumo. No toca stock_actual:
     eso solo se modifica a través de movimientos_inventario."""
     with get_connection() as conn:
         conn.execute(
             """UPDATE insumos
-               SET nombre = ?, aplica_a = ?, precio_extra = ?, unidad_medida = ?, stock_minimo = ?
+               SET nombre = ?, aplica_a = ?, precio_extra = ?, unidad_medida = ?, stock_minimo = ?,
+                   categoria_armado = ?
                WHERE id = ?""",
-            (nombre, aplica_a, precio_extra, unidad_medida, stock_minimo, insumo_id),
+            (nombre, aplica_a, precio_extra, unidad_medida, stock_minimo, categoria_armado, insumo_id),
         )
 
 

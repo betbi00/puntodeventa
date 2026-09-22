@@ -10,6 +10,11 @@ from ui import theme
 
 UMBRAL_CONFIRMACION_PORCENTAJE = 0.5  # pedir confirmación si el ajuste reduce >= 50% del stock
 
+CATEGORIA_ARMADO_ETIQUETAS = {
+    "base": "Base", "fruta": "Fruta", "complemento": "Complemento", "decoracion": "Decoración",
+}
+CATEGORIA_ARMADO_OPCIONES = ["(Ninguna)"] + list(CATEGORIA_ARMADO_ETIQUETAS.values())
+
 
 class InventarioView(ctk.CTkFrame):
     def __init__(self, master, current_user, puede_editar=None):
@@ -156,6 +161,8 @@ class InsumosPanel(ctk.CTkFrame):
         if self.mostrar_aplica_a:
             etiqueta_aplica = {"crepa": "Crepa", "waffle": "Waffle", "ambos": "Crepa y Waffle"}[insumo.aplica_a]
             detalle_partes.append(etiqueta_aplica)
+        if self.mostrar_aplica_a and insumo.categoria_armado:
+            detalle_partes.append(CATEGORIA_ARMADO_ETIQUETAS[insumo.categoria_armado])
         detalle_partes.append(f"Stock: {insumo.stock_actual:g} {insumo.unidad_medida} (mínimo {insumo.stock_minimo:g})")
         if not insumo.activo:
             detalle_partes.append("Inactivo")
@@ -234,7 +241,7 @@ class FormularioInsumo(ctk.CTkToplevel):
         self.tipos_permitidos = tipos_permitidos
         self.on_guardado = on_guardado
         self.title("Editar insumo" if self.es_edicion else "Nuevo insumo")
-        self.geometry("400x520")
+        self.geometry("400x680")
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -273,9 +280,20 @@ class FormularioInsumo(ctk.CTkToplevel):
             self.entry_precio.pack(fill="x", pady=(0, 12), **pad)
             if self.es_edicion:
                 self.entry_precio.insert(0, str(self.insumo.precio_extra))
+
+            ctk.CTkLabel(
+                self, text="Categoría en el armador de Crepa/Waffle (opcional)", anchor="w",
+            ).pack(fill="x", **pad)
+            self.option_categoria_armado = ctk.CTkOptionMenu(
+                self, values=CATEGORIA_ARMADO_OPCIONES, fg_color=theme.BG_INPUT,
+            )
+            self.option_categoria_armado.pack(fill="x", pady=(0, 12), **pad)
+            if self.es_edicion and self.insumo.categoria_armado:
+                self.option_categoria_armado.set(CATEGORIA_ARMADO_ETIQUETAS[self.insumo.categoria_armado])
         else:
             self.option_aplica_a = None
             self.entry_precio = None
+            self.option_categoria_armado = None
 
         ctk.CTkLabel(self, text="Unidad de medida (ej. pza, g, ml, porcion)", anchor="w").pack(fill="x", **pad)
         self.entry_unidad = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
@@ -311,21 +329,35 @@ class FormularioInsumo(ctk.CTkToplevel):
             precio_extra = float(self.entry_precio.get() or 0) if self.entry_precio else 0
             unidad = self.entry_unidad.get().strip() or "pza"
             stock_minimo = float(self.entry_stock_minimo.get() or 0)
+            categoria_armado = self._categoria_armado_seleccionada()
 
             if self.es_edicion:
-                inv.actualizar_insumo(self.insumo.id, nombre, aplica_a, precio_extra, unidad, stock_minimo)
+                inv.actualizar_insumo(
+                    self.insumo.id, nombre, aplica_a, precio_extra, unidad, stock_minimo, categoria_armado,
+                )
             else:
                 tipo = (
                     self.tipo_fijo
                     or self._tipo_desde_etiqueta(self.option_tipo.get())
                 )
                 stock_inicial = float(self.entry_stock_inicial.get() or 0)
-                inv.crear_insumo(nombre, tipo, aplica_a, precio_extra, unidad, stock_inicial, stock_minimo)
+                inv.crear_insumo(
+                    nombre, tipo, aplica_a, precio_extra, unidad, stock_inicial, stock_minimo, categoria_armado,
+                )
         except (inv.ValidationError, ValueError) as e:
             self.label_error.configure(text=str(e))
             return
         self.on_guardado()
         self.destroy()
+
+    def _categoria_armado_seleccionada(self):
+        if not self.option_categoria_armado:
+            return None
+        etiqueta = self.option_categoria_armado.get()
+        for valor, label in CATEGORIA_ARMADO_ETIQUETAS.items():
+            if label == etiqueta:
+                return valor
+        return None
 
     def _tipo_desde_etiqueta(self, etiqueta):
         for tipo, label in self.TIPO_ETIQUETAS.items():

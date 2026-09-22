@@ -2,7 +2,7 @@
 bases ya existentes, crea el esquema, y siembra datos de ejemplo."""
 from config import SCHEMA_PATH
 from db.connection import get_connection
-from db.seed import seed_all
+from db.seed import actualizar_menu_oficial, seed_all
 
 # (tabla, columna, definición SQL de la columna) — para columnas nuevas
 # agregadas a tablas que ya existían en bases creadas antes de este cambio.
@@ -17,6 +17,7 @@ MIGRACIONES_COLUMNAS = [
     ("bebidas", "stock_actual", "REAL NOT NULL DEFAULT 0"),
     ("bebidas", "stock_minimo", "REAL NOT NULL DEFAULT 0"),
     ("recetas", "imagen_pasos_path", "TEXT"),
+    ("insumos", "categoria_armado", "TEXT"),
 ]
 
 
@@ -62,6 +63,7 @@ def _migrar_check_insumos_tipo(conn) -> None:
                 nombre          TEXT NOT NULL,
                 tipo            TEXT NOT NULL CHECK (tipo IN ('ingrediente', 'boba', 'perla_explosiva', 'desechable')),
                 aplica_a        TEXT CHECK (aplica_a IN ('crepa', 'waffle', 'ambos')) DEFAULT 'ambos',
+                categoria_armado TEXT,
                 precio_extra    REAL NOT NULL DEFAULT 0,
                 unidad_medida   TEXT NOT NULL DEFAULT 'pza',
                 stock_actual    REAL NOT NULL DEFAULT 0,
@@ -69,9 +71,11 @@ def _migrar_check_insumos_tipo(conn) -> None:
                 activo          INTEGER NOT NULL DEFAULT 1
             )
         """)
+        # categoria_armado ya existe en insumos_viejo: _aplicar_migraciones_columnas
+        # siempre corre antes que esta reconstrucción.
         conn.execute("""
-            INSERT INTO insumos (id, nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo, activo)
-            SELECT id, nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo, activo
+            INSERT INTO insumos (id, nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo, activo)
+            SELECT id, nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo, activo
             FROM insumos_viejo
         """)
         conn.execute("DROP TABLE insumos_viejo")
@@ -149,3 +153,4 @@ def initialize_database() -> None:
         _migrar_recetas_quitar_video(conn)
         conn.executescript(schema_sql)
         seed_all(conn)
+        actualizar_menu_oficial(conn)

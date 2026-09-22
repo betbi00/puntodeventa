@@ -18,6 +18,11 @@ CREATE TABLE IF NOT EXISTS insumos (
     nombre          TEXT NOT NULL,
     tipo            TEXT NOT NULL CHECK (tipo IN ('ingrediente', 'boba', 'perla_explosiva', 'desechable')),
     aplica_a        TEXT CHECK (aplica_a IN ('crepa', 'waffle', 'ambos')) DEFAULT 'ambos',
+    -- Solo aplica a insumos tipo='ingrediente': en qué paso del armado
+    -- guiado de Crepa/Waffle aparece (base, fruta, complemento o
+    -- decoración). NULL = no aparece en el armador (ej. ingredientes que
+    -- ya no están en el menú oficial pero se conservan en inventario).
+    categoria_armado TEXT,
     precio_extra    REAL NOT NULL DEFAULT 0,
     unidad_medida   TEXT NOT NULL DEFAULT 'pza',
     stock_actual    REAL NOT NULL DEFAULT 0,
