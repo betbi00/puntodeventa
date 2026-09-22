@@ -12,6 +12,7 @@ DB_PATH = DATA_DIR / "pos.db"
 SCHEMA_PATH = BASE_DIR / "db" / "schema.sql"
 ASSETS_DIR = BASE_DIR / "assets"
 LOGO_PATH = ASSETS_DIR / "logo_cuillas.png"
+MUNECOS_DIR = ASSETS_DIR / "munecos"
 
 # Datos del negocio (se usan en encabezados de UI y, más adelante, en el ticket impreso)
 NEGOCIO_NOMBRE = "Cuillas"

@@ -2,7 +2,9 @@
 Bebidas, todo junto en una sola pantalla con scroll) a la izquierda,
 carrito a la derecha."""
 import customtkinter as ctk
+from PIL import Image
 
+from config import MUNECOS_DIR
 from services import impresion_service as imp
 from services import inventario_service as inv
 from services import venta_service as vs
@@ -12,7 +14,8 @@ from ui.ventas.bebida_view import BebidaCatalogo
 from ui.ventas.carrito_cobro_view import CarritoPanel
 from ui.ventas.producto_builder_view import ProductoBuilderView
 
-ICONOS_PRODUCTO_BASE = {"crepa": "🥞", "waffle": "🧇"}
+MUNECOS_PRODUCTO_BASE = {"crepa": "crepa.png", "waffle": "waffle.png"}
+TAMANO_MUNECO_PRODUCTO_BASE = 130
 ALTO_FILA_PRODUCTOS_BASE = 260
 
 
@@ -21,6 +24,7 @@ class VentaView(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent")
         self.current_user = current_user
         self.carrito = vs.Carrito()
+        self._imagenes = {}  # guarda referencias a los CTkImage para que no los borre el garbage collector
         self._build()
 
     def _build(self):
@@ -88,8 +92,7 @@ class VentaView(ctk.CTkFrame):
         contenido = ctk.CTkFrame(card, fg_color="transparent")
         contenido.place(relx=0.5, rely=0.5, anchor="center")
 
-        icono = ICONOS_PRODUCTO_BASE.get(nombre_producto.lower(), "🍽️")
-        ctk.CTkLabel(contenido, text=icono, font=(theme.FONT_FAMILY, 56)).pack(pady=(0, 12))
+        self._muneco_producto_base(contenido, nombre_producto)
         ctk.CTkLabel(
             contenido, text=f"Armar {producto.nombre}", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
         ).pack()
@@ -104,6 +107,17 @@ class VentaView(ctk.CTkFrame):
         contenido.bind("<Button-1>", abrir)
         for child in contenido.winfo_children():
             child.bind("<Button-1>", abrir)
+
+    def _muneco_producto_base(self, master, nombre_producto):
+        archivo = MUNECOS_PRODUCTO_BASE.get(nombre_producto.lower())
+        if not archivo:
+            return
+        imagen = Image.open(MUNECOS_DIR / archivo)
+        ctk_imagen = ctk.CTkImage(
+            light_image=imagen, dark_image=imagen, size=(TAMANO_MUNECO_PRODUCTO_BASE, TAMANO_MUNECO_PRODUCTO_BASE),
+        )
+        self._imagenes[nombre_producto.lower()] = ctk_imagen
+        ctk.CTkLabel(master, image=ctk_imagen, text="").pack(pady=(0, 12))
 
     def _agregar_item(self, item):
         self.carrito.agregar(item)

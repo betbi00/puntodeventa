@@ -3,18 +3,28 @@ ofrece depende de bebida.tipo_extra — 'boba_perlas' (se puede marcar más
 de uno) o 'pulpa' (una sola pulpa de fruta). Ninguno tiene costo
 adicional, pero sí descuentan su propio inventario."""
 import customtkinter as ctk
+from PIL import Image
 
+from config import MUNECOS_DIR
 from services import inventario_service as inv
 from services import venta_service as vs
 from ui import theme
 
 COLUMNAS = 3
+TAMANO_MUNECO_BEBIDA = 72
+
+
+def _muneco_bebida(nombre_bebida: str) -> str:
+    """Las bobas usan su propio muñeco; el resto (Frappés) usa el del
+    vaso de café, ya que no hay un muñeco de frappé todavía."""
+    return "boba.png" if nombre_bebida.strip().lower().startswith("boba") else "cafe.png"
 
 
 class BebidaCatalogo(ctk.CTkFrame):
     def __init__(self, master, on_agregar):
         super().__init__(master, fg_color="transparent")
         self.on_agregar = on_agregar
+        self._imagenes = {}  # bebida_id -> CTkImage, evita que el garbage collector las borre
         for col in range(COLUMNAS):
             self.grid_columnconfigure(col, weight=1)
         self._refrescar()
@@ -31,10 +41,10 @@ class BebidaCatalogo(ctk.CTkFrame):
         card = ctk.CTkFrame(self, fg_color=theme.BG_PAGE, corner_radius=theme.RADIUS_CARD, cursor="hand2")
         card.grid(row=fila, column=columna, padx=8, pady=8, sticky="nsew")
 
-        ctk.CTkLabel(
-            card, text="🥤", width=44, height=44, fg_color=theme.BLUE_SOFT, corner_radius=22,
-            font=(theme.FONT_FAMILY, 18),
-        ).pack(anchor="w", padx=16, pady=(16, 8))
+        imagen = Image.open(MUNECOS_DIR / _muneco_bebida(bebida.nombre))
+        ctk_imagen = ctk.CTkImage(light_image=imagen, dark_image=imagen, size=(TAMANO_MUNECO_BEBIDA, TAMANO_MUNECO_BEBIDA))
+        self._imagenes[bebida.id] = ctk_imagen
+        ctk.CTkLabel(card, image=ctk_imagen, text="").pack(anchor="w", padx=16, pady=(16, 8))
         ctk.CTkLabel(
             card, text=bebida.nombre, anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
         ).pack(anchor="w", padx=16)
