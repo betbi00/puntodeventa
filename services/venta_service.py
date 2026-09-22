@@ -16,7 +16,7 @@ from models import insumo as insumo_model
 from models import producto_base as producto_base_model
 from services import inventario_service
 
-EXTRAS_BEBIDA_TIPOS = ("boba", "perla_explosiva")
+EXTRAS_BEBIDA_TIPOS = ("boba", "perla_explosiva", "pulpa")
 METODOS_PAGO_VALIDOS = ("efectivo", "tarjeta")
 
 
@@ -80,17 +80,22 @@ def armar_producto_base(producto_base_id: int, insumo_ids_seleccionados: list[in
 
 
 def armar_bebida(bebida_id: int, extra_insumo_ids: Optional[list[int]] = None) -> ItemCarrito:
-    """Bebida de precio fijo con extras opcionales (boba / perlas
-    explosivas) que no suman costo pero sí se descuentan de su propio
-    stock. Se puede marcar más de un extra a la vez."""
+    """Bebida de precio fijo con extras opcionales que no suman costo pero
+    sí se descuentan de su propio stock. Qué tipo de extra aplica depende
+    de bebida.tipo_extra: 'boba_perlas' permite marcar varios a la vez;
+    'pulpa' es de elección única (una sola pulpa de fruta)."""
     bebida = bebida_model.get_by_id(bebida_id)
     if not bebida or not bebida.activo:
         raise ValidationError("La bebida no existe o no está disponible")
     if bebida.stock_actual <= 0:
         raise ValidationError(f'"{bebida.nombre}" está agotada')
 
+    extra_insumo_ids = extra_insumo_ids or []
+    if bebida.tipo_extra == "pulpa" and len(extra_insumo_ids) > 1:
+        raise ValidationError("Solo se puede elegir una pulpa")
+
     extras_usados = []
-    for insumo_id in (extra_insumo_ids or []):
+    for insumo_id in extra_insumo_ids:
         insumo = insumo_model.get_by_id(insumo_id)
         if not insumo or not insumo.activo:
             raise ValidationError("Uno de los extras seleccionados ya no está disponible")

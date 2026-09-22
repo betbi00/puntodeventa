@@ -1,5 +1,7 @@
-"""Catálogo de bebidas (precio fijo) y modal de extras: boba y/o perlas
-explosivas, sin costo adicional pero descontando su propio inventario."""
+"""Catálogo de bebidas (precio fijo) y modal de extras: qué extra se
+ofrece depende de bebida.tipo_extra — 'boba_perlas' (se puede marcar más
+de uno) o 'pulpa' (una sola pulpa de fruta). Ninguno tiene costo
+adicional, pero sí descuentan su propio inventario."""
 import customtkinter as ctk
 
 from services import inventario_service as inv
@@ -54,7 +56,10 @@ class BebidaExtrasModal(ctk.CTkToplevel):
         super().__init__(master)
         self.bebida = bebida
         self.on_agregar = on_agregar
-        self.checkboxes = {}  # insumo_id -> (CTkCheckBox, Insumo)
+        self.checkboxes = {}  # insumo_id -> (CTkCheckBox, Insumo) — modo boba_perlas
+        self.opcion_pulpa = None  # tk.IntVar compartida entre los radio — modo pulpa
+        self.radios_pulpa = {}  # insumo_id -> Insumo
+        self.es_pulpa = bebida.tipo_extra == "pulpa"
 
         self.title(bebida.nombre)
         self.geometry("380x380")
@@ -71,6 +76,21 @@ class BebidaExtrasModal(ctk.CTkToplevel):
             self, text=f"${self.bebida.precio:.2f} · precio fijo", text_color=theme.TEXT_SECONDARY,
         ).pack(anchor="w", padx=24, pady=(0, 16))
 
+        if self.es_pulpa:
+            self._build_pulpa()
+        else:
+            self._build_boba_perlas()
+
+        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR, wraplength=330, justify="left")
+        self.label_error.pack(fill="x", padx=24, pady=(12, 0))
+
+        ctk.CTkButton(
+            self, text=f"+ Agregar ${self.bebida.precio:.2f}", corner_radius=theme.RADIUS_BUTTON,
+            fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
+            height=48, command=self._agregar,
+        ).pack(fill="x", padx=24, pady=(16, 24), side="bottom")
+
+    def _build_boba_perlas(self):
         ctk.CTkLabel(
             self, text="Extras sin costo", anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
         ).pack(anchor="w", padx=24)
@@ -87,17 +107,33 @@ class BebidaExtrasModal(ctk.CTkToplevel):
             checkbox.pack(anchor="w", padx=24, pady=6)
             self.checkboxes[insumo.id] = (checkbox, insumo)
 
-        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR, wraplength=330, justify="left")
-        self.label_error.pack(fill="x", padx=24, pady=(12, 0))
+    def _build_pulpa(self):
+        ctk.CTkLabel(
+            self, text="Elige tu pulpa", anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(anchor="w", padx=24)
 
-        ctk.CTkButton(
-            self, text=f"+ Agregar ${self.bebida.precio:.2f}", corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
-            height=48, command=self._agregar,
-        ).pack(fill="x", padx=24, pady=(16, 24), side="bottom")
+        pulpas = inv.listar_insumos(tipo="pulpa", incluir_inactivos=False)
+        self.opcion_pulpa = ctk.IntVar(value=0)
+        for insumo in pulpas:
+            agotado = insumo.stock_actual <= 0
+            texto = insumo.nombre + ("  (agotado)" if agotado else "")
+            radio = ctk.CTkRadioButton(
+                self, text=texto, variable=self.opcion_pulpa, value=insumo.id,
+                state="disabled" if agotado else "normal",
+                text_color=theme.TEXT_SECONDARY if agotado else theme.TEXT_PRIMARY,
+                fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
+            )
+            radio.pack(anchor="w", padx=24, pady=6)
+            self.radios_pulpa[insumo.id] = insumo
 
     def _agregar(self):
-        seleccionados = [insumo.id for (cb, insumo) in self.checkboxes.values() if cb.get() == 1]
+        if self.es_pulpa:
+            if self.radios_pulpa and self.opcion_pulpa.get() == 0:
+                self.label_error.configure(text="Elige una pulpa antes de continuar")
+                return
+            seleccionados = [self.opcion_pulpa.get()] if self.opcion_pulpa.get() else []
+        else:
+            seleccionados = [insumo.id for (cb, insumo) in self.checkboxes.values() if cb.get() == 1]
         try:
             item = vs.armar_bebida(self.bebida.id, seleccionados)
         except vs.ValidationError as e:

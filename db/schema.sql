@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
 CREATE TABLE IF NOT EXISTS insumos (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre          TEXT NOT NULL,
-    tipo            TEXT NOT NULL CHECK (tipo IN ('ingrediente', 'boba', 'perla_explosiva', 'desechable')),
+    tipo            TEXT NOT NULL CHECK (tipo IN ('ingrediente', 'boba', 'perla_explosiva', 'desechable', 'pulpa')),
     aplica_a        TEXT CHECK (aplica_a IN ('crepa', 'waffle', 'ambos')) DEFAULT 'ambos',
     -- Solo aplica a insumos tipo='ingrediente': en qué paso del armado
     -- guiado de Crepa/Waffle aparece (base, fruta, complemento o
@@ -41,6 +41,10 @@ CREATE TABLE IF NOT EXISTS bebidas (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre          TEXT NOT NULL,
     precio          REAL NOT NULL,
+    -- Qué tipo de extra se le ofrece al cliente al agregarla al carrito:
+    -- 'boba_perlas' (boba/perlas explosivas, se puede elegir más de una) o
+    -- 'pulpa' (una sola pulpa de fruta). NULL = sin extras para elegir.
+    tipo_extra      TEXT,
     stock_actual    REAL NOT NULL DEFAULT 0,
     stock_minimo    REAL NOT NULL DEFAULT 0,
     activo          INTEGER NOT NULL DEFAULT 1

@@ -164,7 +164,17 @@ def listar_bebidas(incluir_inactivos: bool = True):
     return bebida_model.listar(incluir_inactivos=incluir_inactivos)
 
 
-def crear_bebida(nombre: str, precio: float, stock_inicial: float = 0, stock_minimo: float = 0):
+def _validar_tipo_extra(tipo_extra: Optional[str]) -> Optional[str]:
+    tipo_extra = (tipo_extra or "").strip() or None
+    if tipo_extra is not None and tipo_extra not in bebida_model.TIPOS_EXTRA_VALIDOS:
+        raise ValidationError(f"Tipo de extra inválido: {tipo_extra}")
+    return tipo_extra
+
+
+def crear_bebida(
+    nombre: str, precio: float, stock_inicial: float = 0, stock_minimo: float = 0,
+    tipo_extra: Optional[str] = None,
+):
     nombre = nombre.strip()
     if not nombre:
         raise ValidationError("El nombre es obligatorio")
@@ -172,10 +182,11 @@ def crear_bebida(nombre: str, precio: float, stock_inicial: float = 0, stock_min
         raise ValidationError("El precio debe ser mayor a cero")
     if stock_inicial < 0 or stock_minimo < 0:
         raise ValidationError("El stock no puede ser negativo")
-    return bebida_model.crear(nombre, precio, stock_inicial, stock_minimo)
+    tipo_extra = _validar_tipo_extra(tipo_extra)
+    return bebida_model.crear(nombre, precio, stock_inicial, stock_minimo, tipo_extra)
 
 
-def actualizar_bebida(bebida_id: int, nombre: str, precio: float, stock_minimo: float):
+def actualizar_bebida(bebida_id: int, nombre: str, precio: float, stock_minimo: float, tipo_extra: Optional[str] = None):
     nombre = nombre.strip()
     if not nombre:
         raise ValidationError("El nombre es obligatorio")
@@ -183,7 +194,8 @@ def actualizar_bebida(bebida_id: int, nombre: str, precio: float, stock_minimo: 
         raise ValidationError("El precio debe ser mayor a cero")
     if stock_minimo < 0:
         raise ValidationError("El stock mínimo no puede ser negativo")
-    bebida_model.actualizar(bebida_id, nombre, precio, stock_minimo)
+    tipo_extra = _validar_tipo_extra(tipo_extra)
+    bebida_model.actualizar(bebida_id, nombre, precio, stock_minimo, tipo_extra)
 
 
 def set_activo_bebida(bebida_id: int, activo: bool):

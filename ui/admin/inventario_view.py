@@ -47,7 +47,7 @@ class InventarioView(ctk.CTkFrame):
         tabview.pack(fill="both", expand=True)
 
         tab_ingredientes = tabview.add("Ingredientes")
-        tab_extras = tabview.add("Boba y Perlas")
+        tab_extras = tabview.add("Extras de bebidas")
         tab_bebidas = tabview.add("Bebidas")
         tab_desechables = tabview.add("Desechables")
 
@@ -74,7 +74,7 @@ class InventarioView(ctk.CTkFrame):
         ).pack(fill="both", expand=True)
 
         InsumosPanel(
-            tab_extras, tipos=["boba", "perla_explosiva"], tipo_nuevo=None,
+            tab_extras, tipos=["boba", "perla_explosiva", "pulpa"], tipo_nuevo=None,
             current_user=self.current_user, mostrar_precio_extra=False, mostrar_aplica_a=False,
             etiqueta_nuevo="+ Nuevo extra", puede_editar=self.puede_editar,
         ).pack(fill="both", expand=True)
@@ -231,7 +231,7 @@ class FormularioInsumo(ctk.CTkToplevel):
     APLICA_A_OPCIONES = ["ambos", "crepa", "waffle"]
     TIPO_ETIQUETAS = {
         "ingrediente": "Ingrediente", "boba": "Boba", "perla_explosiva": "Perla explosiva",
-        "desechable": "Desechable",
+        "desechable": "Desechable", "pulpa": "Pulpa de fruta",
     }
 
     def __init__(self, master, tipos_permitidos, insumo, on_guardado):
@@ -685,13 +685,17 @@ class BebidasPanel(ctk.CTkFrame):
         )
 
 
+TIPO_EXTRA_ETIQUETAS = {"boba_perlas": "Boba / Perlas explosivas (varias a la vez)", "pulpa": "Pulpa de fruta (una sola)"}
+TIPO_EXTRA_OPCIONES = ["(Ninguno)"] + list(TIPO_EXTRA_ETIQUETAS.values())
+
+
 class FormularioBebida(ctk.CTkToplevel):
     def __init__(self, master, bebida, on_guardado):
         super().__init__(master)
         self.bebida = bebida
         self.on_guardado = on_guardado
         self.title("Editar bebida" if bebida else "Nueva bebida")
-        self.geometry("360x420" if bebida else "360x460")
+        self.geometry("360x520" if bebida else "360x560")
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -709,6 +713,12 @@ class FormularioBebida(ctk.CTkToplevel):
         self.entry_precio.pack(fill="x", padx=24, pady=(0, 12))
         if self.bebida:
             self.entry_precio.insert(0, str(self.bebida.precio))
+
+        ctk.CTkLabel(self, text="Extra que se ofrece al vender (opcional)", anchor="w").pack(fill="x", padx=24)
+        self.option_tipo_extra = ctk.CTkOptionMenu(self, values=TIPO_EXTRA_OPCIONES, fg_color=theme.BG_INPUT)
+        self.option_tipo_extra.pack(fill="x", padx=24, pady=(0, 12))
+        if self.bebida and self.bebida.tipo_extra:
+            self.option_tipo_extra.set(TIPO_EXTRA_ETIQUETAS[self.bebida.tipo_extra])
 
         if not self.bebida:
             ctk.CTkLabel(self, text="Stock inicial", anchor="w").pack(fill="x", padx=24)
@@ -736,16 +746,24 @@ class FormularioBebida(ctk.CTkToplevel):
         try:
             precio = float(self.entry_precio.get())
             stock_minimo = float(self.entry_stock_minimo.get() or 0)
+            tipo_extra = self._tipo_extra_seleccionado()
             if self.bebida:
-                inv.actualizar_bebida(self.bebida.id, self.entry_nombre.get(), precio, stock_minimo)
+                inv.actualizar_bebida(self.bebida.id, self.entry_nombre.get(), precio, stock_minimo, tipo_extra)
             else:
                 stock_inicial = float(self.entry_stock_inicial.get() or 0)
-                inv.crear_bebida(self.entry_nombre.get(), precio, stock_inicial, stock_minimo)
+                inv.crear_bebida(self.entry_nombre.get(), precio, stock_inicial, stock_minimo, tipo_extra)
         except (inv.ValidationError, ValueError) as e:
             self.label_error.configure(text=str(e) if isinstance(e, inv.ValidationError) else "Precio o stock inválido")
             return
         self.on_guardado()
         self.destroy()
+
+    def _tipo_extra_seleccionado(self):
+        etiqueta = self.option_tipo_extra.get()
+        for valor, label in TIPO_EXTRA_ETIQUETAS.items():
+            if label == etiqueta:
+                return valor
+        return None
 
 
 # ---------------------------------------------------------------------------
