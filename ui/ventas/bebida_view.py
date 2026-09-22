@@ -14,10 +14,41 @@ COLUMNAS = 3
 TAMANO_MUNECO_BEBIDA = 72
 
 
+# Variantes de color generadas a partir de boba.png / cafe.png (mismo
+# dibujo, distinto tono de contorno) para que cada sabor se distinga a
+# simple vista en vez de repetir siempre el mismo color.
+VARIANTES_DISPONIBLES = {
+    ("boba", "taro"), ("boba", "matcha"), ("boba", "chai"),
+    ("cafe", "taro"), ("cafe", "matcha"), ("cafe", "chai"),
+    ("cafe", "oreo"), ("cafe", "mazapan"), ("cafe", "fruta"),
+}
+
+
 def _muneco_bebida(nombre_bebida: str) -> str:
-    """Las bobas usan su propio muñeco; el resto (Frappés) usa el del
-    vaso de café, ya que no hay un muñeco de frappé todavía."""
-    return "boba.png" if nombre_bebida.strip().lower().startswith("boba") else "cafe.png"
+    """Las bobas usan como base el muñeco de boba; el resto (Frappés) el
+    del vaso de café — pero coloreado distinto según el sabor, para que
+    no se vean todas idénticas."""
+    nombre = nombre_bebida.strip().lower()
+    base = "boba" if nombre.startswith("boba") else "cafe"
+
+    if "taro" in nombre:
+        sabor = "taro"
+    elif "matcha" in nombre:
+        sabor = "matcha"
+    elif "chai" in nombre:
+        sabor = "chai"
+    elif "oreo" in nombre:
+        sabor = "oreo"
+    elif "mazap" in nombre:  # "Mazapán"
+        sabor = "mazapan"
+    elif "pulpa" in nombre:  # el sabor real lo elige el cliente al vender
+        sabor = "fruta"
+    else:
+        sabor = None
+
+    if sabor and (base, sabor) in VARIANTES_DISPONIBLES:
+        return f"{base}_{sabor}.png"
+    return f"{base}.png"
 
 
 class BebidaCatalogo(ctk.CTkFrame):
