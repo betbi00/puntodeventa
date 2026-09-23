@@ -112,3 +112,24 @@ def set_activo(insumo_id: int, activo: bool) -> None:
         conn.execute(
             "UPDATE insumos SET activo = ? WHERE id = ?", (1 if activo else 0, insumo_id)
         )
+
+
+def tiene_historial(insumo_id: int) -> bool:
+    """True si alguna vez se usó en una venta (detalle_venta_insumos) o
+    tiene algún movimiento de stock (entradas/ajustes) — en ese caso no
+    se puede eliminar de verdad, solo desactivar."""
+    with get_connection() as conn:
+        en_ventas = conn.execute(
+            "SELECT 1 FROM detalle_venta_insumos WHERE insumo_id = ? LIMIT 1", (insumo_id,)
+        ).fetchone()
+        if en_ventas:
+            return True
+        en_movimientos = conn.execute(
+            "SELECT 1 FROM movimientos_inventario WHERE insumo_id = ? LIMIT 1", (insumo_id,)
+        ).fetchone()
+    return en_movimientos is not None
+
+
+def eliminar(insumo_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM insumos WHERE id = ?", (insumo_id,))

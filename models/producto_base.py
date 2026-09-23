@@ -65,3 +65,18 @@ def set_activo(producto_id: int, activo: bool) -> None:
         conn.execute(
             "UPDATE productos_base SET activo = ? WHERE id = ?", (1 if activo else 0, producto_id)
         )
+
+
+def tiene_historial(producto_id: int) -> bool:
+    """True si alguna vez se vendió (aparece en detalle_venta) — en ese
+    caso no se puede eliminar de verdad, solo desactivar."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM detalle_venta WHERE producto_base_id = ? LIMIT 1", (producto_id,)
+        ).fetchone()
+    return row is not None
+
+
+def eliminar(producto_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM productos_base WHERE id = ?", (producto_id,))

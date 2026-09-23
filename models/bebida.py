@@ -75,3 +75,24 @@ def actualizar(
 def set_activo(bebida_id: int, activo: bool) -> None:
     with get_connection() as conn:
         conn.execute("UPDATE bebidas SET activo = ? WHERE id = ?", (1 if activo else 0, bebida_id))
+
+
+def tiene_historial(bebida_id: int) -> bool:
+    """True si alguna vez se vendió (detalle_venta) o tiene algún
+    movimiento de stock (movimientos_inventario) — en ese caso no se
+    puede eliminar de verdad, solo desactivar."""
+    with get_connection() as conn:
+        en_ventas = conn.execute(
+            "SELECT 1 FROM detalle_venta WHERE bebida_id = ? LIMIT 1", (bebida_id,)
+        ).fetchone()
+        if en_ventas:
+            return True
+        en_movimientos = conn.execute(
+            "SELECT 1 FROM movimientos_inventario WHERE bebida_id = ? LIMIT 1", (bebida_id,)
+        ).fetchone()
+    return en_movimientos is not None
+
+
+def eliminar(bebida_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM bebidas WHERE id = ?", (bebida_id,))
