@@ -87,6 +87,18 @@ def set_activo_insumo(insumo_id: int, activo: bool) -> None:
     insumo_model.set_activo(insumo_id, activo)
 
 
+def insumo_puede_eliminarse(insumo_id: int) -> bool:
+    return not insumo_model.tiene_historial(insumo_id)
+
+
+def eliminar_insumo(insumo_id: int) -> None:
+    if insumo_model.tiene_historial(insumo_id):
+        raise ValidationError(
+            "Este insumo ya se usó en una venta o tiene movimientos de stock — solo se puede desactivar."
+        )
+    insumo_model.eliminar(insumo_id)
+
+
 def ajustar_stock(
     insumo_id: int, tipo: str, cantidad: float, usuario_id: int, motivo: Optional[str] = None,
 ) -> Insumo:
@@ -202,6 +214,18 @@ def set_activo_bebida(bebida_id: int, activo: bool):
     bebida_model.set_activo(bebida_id, activo)
 
 
+def bebida_puede_eliminarse(bebida_id: int) -> bool:
+    return not bebida_model.tiene_historial(bebida_id)
+
+
+def eliminar_bebida(bebida_id: int) -> None:
+    if bebida_model.tiene_historial(bebida_id):
+        raise ValidationError(
+            "Esta bebida ya se vendió o tiene movimientos de stock — solo se puede desactivar."
+        )
+    bebida_model.eliminar(bebida_id)
+
+
 def ajustar_stock_bebida(
     bebida_id: int, tipo: str, cantidad: float, usuario_id: int, motivo: Optional[str] = None,
 ):
@@ -296,3 +320,13 @@ def actualizar_producto_base(producto_id: int, nombre: str, precio_base: float):
 
 def set_activo_producto_base(producto_id: int, activo: bool):
     producto_base_model.set_activo(producto_id, activo)
+
+
+def producto_base_puede_eliminarse(producto_id: int) -> bool:
+    return not producto_base_model.tiene_historial(producto_id)
+
+
+def eliminar_producto_base(producto_id: int) -> None:
+    if producto_base_model.tiene_historial(producto_id):
+        raise ValidationError("Este producto ya se vendió — solo se puede desactivar.")
+    producto_base_model.eliminar(producto_id)

@@ -1,7 +1,12 @@
-"""Gestión de inventario: ingredientes, boba/perlas explosivas, bebidas y
-productos base. Los cambios de stock siempre pasan por un "ajuste" con
-motivo obligatorio (nunca se edita stock_actual directamente), y los
-insumos/bebidas/productos solo se desactivan, nunca se eliminan."""
+"""Gestión de inventario: ingredientes, boba/perlas explosivas/pulpa,
+bebidas y productos base, todo en una sola vista con buscador y filtro por
+categoría. Los cambios de stock siempre pasan por un "ajuste" con motivo
+obligatorio (nunca se edita stock_actual directamente). Un insumo, bebida o
+producto base solo se puede eliminar de verdad si nunca se ha vendido ni
+tiene movimientos de stock registrados; en cualquier otro caso se protege
+y solo se puede desactivar."""
+import tkinter as tk
+
 import customtkinter as ctk
 
 from models import usuario as usuario_model
@@ -15,12 +20,28 @@ CATEGORIA_ARMADO_ETIQUETAS = {
 }
 CATEGORIA_ARMADO_OPCIONES = ["(Ninguna)"] + list(CATEGORIA_ARMADO_ETIQUETAS.values())
 
+TIPO_EXTRA_ETIQUETAS = {"boba_perlas": "Boba / Perlas explosivas (varias a la vez)", "pulpa": "Pulpa de fruta (una sola)"}
+TIPO_EXTRA_OPCIONES = ["(Ninguno)"] + list(TIPO_EXTRA_ETIQUETAS.values())
+
+# Grupo al que pertenece cada fila de la vista unificada: controla el
+# badge que se muestra y las opciones del filtro por categoría.
+GRUPO_ETIQUETAS = {
+    "ingrediente": "Ingrediente",
+    "extra": "Extra de bebida",
+    "bebida": "Bebida",
+    "desechable": "Desechable",
+    "producto_base": "Producto base",
+}
+GRUPOS_FILTRO = ["Todos"] + list(GRUPO_ETIQUETAS.values())
+
 
 class InventarioView(ctk.CTkFrame):
     def __init__(self, master, current_user, puede_editar=None):
         super().__init__(master, fg_color="transparent")
         self.current_user = current_user
         self.puede_editar = puede_editar if puede_editar is not None else (current_user.rol == "admin")
+        self.filtro_texto = ""
+        self.filtro_grupo = "Todos"
         self._build()
 
     def _build(self):
@@ -31,200 +52,306 @@ class InventarioView(ctk.CTkFrame):
         if not self.puede_editar:
             ctk.CTkLabel(
                 self, text="Puedes registrar entradas de mercancía y ajustar stock. "
-                           "Crear, editar o desactivar artículos solo lo puede hacer un administrador.",
+                           "Crear, editar o eliminar artículos solo lo puede hacer un administrador.",
                 text_color=theme.TEXT_SECONDARY, font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL),
                 wraplength=600, justify="left",
             ).pack(anchor="w", pady=(0, 12))
 
-        tabview = ctk.CTkTabview(
-            self, fg_color=theme.BG_CARD,
-            segmented_button_fg_color=theme.BG_INPUT,
-            segmented_button_selected_color=theme.PINK,
-            segmented_button_selected_hover_color=theme.PINK_HOVER,
-            segmented_button_unselected_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY,
+        barra = ctk.CTkFrame(self, fg_color="transparent")
+        barra.pack(fill="x", pady=(0, 12))
+
+        self.entry_buscar = ctk.CTkEntry(
+            barra, placeholder_text="Buscar por nombre...", fg_color=theme.BG_INPUT, border_width=0,
         )
-        tabview.pack(fill="both", expand=True)
+        self.entry_buscar.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.entry_buscar.bind("<KeyRelease>", lambda _e: self._on_filtro_cambiado())
 
-        tab_ingredientes = tabview.add("Ingredientes")
-        tab_extras = tabview.add("Extras de bebidas")
-        tab_bebidas = tabview.add("Bebidas")
-        tab_desechables = tabview.add("Desechables")
-
-        # El precio base de Crepa/Waffle se administra aquí arriba, compacto,
-        # en vez de tener su propia pestaña. Es exclusivo del administrador:
-        # el vendedor ni siquiera ve que existe (no solo no puede editarlo).
-        if self.puede_editar:
-            precio_base_container = ctk.CTkFrame(tab_ingredientes, fg_color="transparent", height=180)
-            precio_base_container.pack(fill="x", pady=(0, 12))
-            precio_base_container.pack_propagate(False)
-            ctk.CTkLabel(
-                precio_base_container, text="Precio base (Crepa, Waffle)",
-                font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-            ).pack(anchor="w", pady=(0, 4))
-            ProductosBasePanel(precio_base_container, puede_editar=self.puede_editar).pack(fill="both", expand=True)
-
-        ctk.CTkLabel(
-            tab_ingredientes, text="Ingredientes", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(anchor="w", pady=(0, 4))
-        InsumosPanel(
-            tab_ingredientes, tipos="ingrediente", tipo_nuevo="ingrediente",
-            current_user=self.current_user, mostrar_precio_extra=True, mostrar_aplica_a=True,
-            etiqueta_nuevo="+ Nuevo ingrediente", puede_editar=self.puede_editar,
-        ).pack(fill="both", expand=True)
-
-        InsumosPanel(
-            tab_extras, tipos=["boba", "perla_explosiva", "pulpa"], tipo_nuevo=None,
-            current_user=self.current_user, mostrar_precio_extra=False, mostrar_aplica_a=False,
-            etiqueta_nuevo="+ Nuevo extra", puede_editar=self.puede_editar,
-        ).pack(fill="both", expand=True)
-
-        BebidasPanel(
-            tab_bebidas, current_user=self.current_user, puede_editar=self.puede_editar,
-        ).pack(fill="both", expand=True)
-
-        InsumosPanel(
-            tab_desechables, tipos="desechable", tipo_nuevo="desechable",
-            current_user=self.current_user, mostrar_precio_extra=False, mostrar_aplica_a=False,
-            etiqueta_nuevo="+ Nuevo desechable", puede_editar=self.puede_editar,
-        ).pack(fill="both", expand=True)
-
-
-# ---------------------------------------------------------------------------
-# Insumos (ingredientes / boba / perlas explosivas)
-# ---------------------------------------------------------------------------
-
-class InsumosPanel(ctk.CTkFrame):
-    def __init__(
-        self, master, tipos, current_user, mostrar_precio_extra, mostrar_aplica_a,
-        etiqueta_nuevo, tipo_nuevo=None, puede_editar=True,
-    ):
-        super().__init__(master, fg_color="transparent")
-        self.tipos = tipos
-        self.tipo_nuevo = tipo_nuevo
-        self.current_user = current_user
-        self.mostrar_precio_extra = mostrar_precio_extra
-        self.mostrar_aplica_a = mostrar_aplica_a
-        self.puede_editar = puede_editar
+        grupos_disponibles = (
+            GRUPOS_FILTRO if self.puede_editar
+            else [g for g in GRUPOS_FILTRO if g != GRUPO_ETIQUETAS["producto_base"]]
+        )
+        self.option_grupo = ctk.CTkOptionMenu(
+            barra, values=grupos_disponibles, fg_color=theme.BG_INPUT,
+            command=lambda _v: self._on_filtro_cambiado(),
+        )
+        self.option_grupo.set("Todos")
+        self.option_grupo.pack(side="left", padx=(0, 8))
 
         if self.puede_editar:
-            header = ctk.CTkFrame(self, fg_color="transparent")
-            header.pack(fill="x", pady=(12, 12))
-            ctk.CTkButton(
-                header, text=etiqueta_nuevo, corner_radius=theme.RADIUS_BUTTON,
+            self.btn_nuevo = ctk.CTkButton(
+                barra, text="+ Nuevo", corner_radius=theme.RADIUS_BUTTON,
                 fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
-                command=self._abrir_form_nuevo,
-            ).pack(side="right")
+                command=self._abrir_menu_nuevo,
+            )
+            self.btn_nuevo.pack(side="left")
 
         self.lista_frame = ctk.CTkScrollableFrame(self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
-        self.lista_frame.pack(fill="both", expand=True, pady=(12, 0) if not self.puede_editar else 0)
+        self.lista_frame.pack(fill="both", expand=True)
 
         self._refrescar()
+
+    # -- filtro / búsqueda ---------------------------------------------------
+
+    def _on_filtro_cambiado(self):
+        self.filtro_texto = self.entry_buscar.get().strip().lower()
+        self.filtro_grupo = self.option_grupo.get()
+        self._refrescar()
+
+    def _abrir_menu_nuevo(self):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label="Ingrediente", command=lambda: self._abrir_form_nuevo_insumo("ingrediente"))
+        menu.add_command(label="Boba", command=lambda: self._abrir_form_nuevo_insumo("boba"))
+        menu.add_command(label="Perla explosiva", command=lambda: self._abrir_form_nuevo_insumo("perla_explosiva"))
+        menu.add_command(label="Pulpa de fruta", command=lambda: self._abrir_form_nuevo_insumo("pulpa"))
+        menu.add_command(label="Desechable", command=lambda: self._abrir_form_nuevo_insumo("desechable"))
+        menu.add_separator()
+        menu.add_command(label="Bebida", command=self._abrir_form_nuevo_bebida)
+        menu.add_command(label="Producto base (Crepa/Waffle)", command=self._abrir_form_nuevo_producto_base)
+        menu.tk_popup(self.btn_nuevo.winfo_rootx(), self.btn_nuevo.winfo_rooty() + self.btn_nuevo.winfo_height())
+
+    def _abrir_form_nuevo_insumo(self, tipo):
+        FormularioInsumo(self, tipos_permitidos=[tipo], insumo=None, on_guardado=self._refrescar)
+
+    def _abrir_form_nuevo_bebida(self):
+        FormularioBebida(self, None, on_guardado=self._refrescar)
+
+    def _abrir_form_nuevo_producto_base(self):
+        FormularioProductoBase(self, None, on_guardado=self._refrescar)
+
+    # -- listado --------------------------------------------------------------
+
+    def _recolectar_items(self):
+        """[(grupo, objeto)] con todo lo que el rol actual puede ver, ya
+        filtrado por texto/categoría y ordenado por nombre."""
+        items = []
+        for insumo in inv.listar_insumos(tipo="ingrediente"):
+            items.append(("ingrediente", insumo))
+        for insumo in inv.listar_insumos(tipo=["boba", "perla_explosiva", "pulpa"]):
+            items.append(("extra", insumo))
+        for insumo in inv.listar_insumos(tipo="desechable"):
+            items.append(("desechable", insumo))
+        for bebida in inv.listar_bebidas():
+            items.append(("bebida", bebida))
+        # El precio base de Crepa/Waffle es exclusivo del administrador: el
+        # vendedor ni siquiera ve que existe (mismo criterio que antes).
+        if self.puede_editar:
+            for producto in inv.listar_productos_base():
+                items.append(("producto_base", producto))
+
+        if self.filtro_grupo != "Todos":
+            grupo_seleccionado = next(g for g, etiqueta in GRUPO_ETIQUETAS.items() if etiqueta == self.filtro_grupo)
+            items = [(g, o) for (g, o) in items if g == grupo_seleccionado]
+
+        if self.filtro_texto:
+            items = [(g, o) for (g, o) in items if self.filtro_texto in o.nombre.lower()]
+
+        items.sort(key=lambda go: go[1].nombre.lower())
+        return items
 
     def _refrescar(self):
         for widget in self.lista_frame.winfo_children():
             widget.destroy()
-        for insumo in inv.listar_insumos(tipo=self.tipos):
-            self._fila_insumo(insumo)
+        items = self._recolectar_items()
+        if not items:
+            ctk.CTkLabel(
+                self.lista_frame, text="No se encontró nada con ese filtro.", text_color=theme.TEXT_SECONDARY,
+            ).pack(pady=16)
+            return
+        for grupo, objeto in items:
+            self._fila(grupo, objeto)
 
-    def _fila_insumo(self, insumo):
+    def _fila(self, grupo, objeto):
         row = ctk.CTkFrame(self.lista_frame, fg_color="transparent")
-        row.pack(fill="x", pady=8, padx=8)
+        row.pack(fill="x", pady=3, padx=6)
 
         info = ctk.CTkFrame(row, fg_color="transparent")
         info.pack(side="left", fill="x", expand=True)
 
+        encabezado = ctk.CTkFrame(info, fg_color="transparent")
+        encabezado.pack(anchor="w", fill="x")
         ctk.CTkLabel(
-            info, text=insumo.nombre, anchor="w",
+            encabezado, text=objeto.nombre, anchor="w",
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(anchor="w")
+        ).pack(side="left")
+        badge = ctk.CTkFrame(encabezado, fg_color=theme.BG_INPUT, corner_radius=theme.RADIUS_BUTTON)
+        badge.pack(side="left", padx=(8, 0))
+        ctk.CTkLabel(
+            badge, text=GRUPO_ETIQUETAS[grupo], text_color=theme.TEXT_SECONDARY,
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL),
+        ).pack(padx=8, pady=1)
 
-        # El vendedor solo ve el nombre y el botón de Ajustar stock — nada
-        # de precio, aplica_a, cantidades de stock, historial ni acciones
-        # de edición/desactivación.
+        # El vendedor solo ve nombre + badge + Ajustar stock — nada de
+        # precio, cantidades de stock, historial ni acciones de
+        # edición/eliminación (los productos base ni llegan aquí, ver
+        # _recolectar_items).
         if not self.puede_editar:
             acciones = ctk.CTkFrame(row, fg_color="transparent")
             acciones.pack(side="right")
             ctk.CTkButton(
-                acciones, text="Ajustar stock", width=120, height=32,
+                acciones, text="Ajustar stock", width=110, height=28,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
-                command=lambda i=insumo: self._abrir_ajuste_stock(i),
-            ).pack(side="left", padx=4)
+                command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
+            ).pack(side="left", padx=3)
             return
-
-        detalle_partes = []
-        if self.mostrar_precio_extra:
-            detalle_partes.append(f"+${insumo.precio_extra:.2f}")
-        else:
-            detalle_partes.append("Sin costo extra")
-        if self.mostrar_aplica_a:
-            etiqueta_aplica = {"crepa": "Crepa", "waffle": "Waffle", "ambos": "Crepa y Waffle"}[insumo.aplica_a]
-            detalle_partes.append(etiqueta_aplica)
-        if self.mostrar_aplica_a and insumo.categoria_armado:
-            detalle_partes.append(CATEGORIA_ARMADO_ETIQUETAS[insumo.categoria_armado])
-        detalle_partes.append(f"Stock: {insumo.stock_actual:g} {insumo.unidad_medida} (mínimo {insumo.stock_minimo:g})")
-        if not insumo.activo:
-            detalle_partes.append("Inactivo")
 
         detalle = ctk.CTkFrame(info, fg_color="transparent")
         detalle.pack(anchor="w")
-        color_stock = theme.ERROR if insumo.bajo_stock_minimo else theme.TEXT_SECONDARY
-        for i, parte in enumerate(detalle_partes):
-            es_stock = parte.startswith("Stock:")
+        partes = self._detalle_partes(grupo, objeto)
+        for i, (texto, es_alerta) in enumerate(partes):
             ctk.CTkLabel(
-                detalle, text=parte + ("  ·  " if i < len(detalle_partes) - 1 else ""),
-                text_color=color_stock if es_stock else theme.TEXT_SECONDARY,
-                font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL, "bold" if es_stock and insumo.bajo_stock_minimo else "normal"),
+                detalle, text=texto + ("  ·  " if i < len(partes) - 1 else ""),
+                text_color=theme.ERROR if es_alerta else theme.TEXT_SECONDARY,
+                font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL, "bold" if es_alerta else "normal"),
             ).pack(side="left")
 
         acciones = ctk.CTkFrame(row, fg_color="transparent")
         acciones.pack(side="right")
 
-        ctk.CTkButton(
-            acciones, text="Ajustar stock", width=120, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
-            command=lambda i=insumo: self._abrir_ajuste_stock(i),
-        ).pack(side="left", padx=4)
+        if grupo != "producto_base":
+            ctk.CTkButton(
+                acciones, text="Ajustar stock", width=110, height=28,
+                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
+                text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
+                command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
+            ).pack(side="left", padx=3)
+
+            ctk.CTkButton(
+                acciones, text="Historial", width=80, height=28,
+                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
+                text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+                command=lambda g=grupo, o=objeto: HistorialMovimientosView(
+                    self, o, entidad_tipo="bebida" if g == "bebida" else "insumo",
+                ),
+            ).pack(side="left", padx=3)
 
         ctk.CTkButton(
-            acciones, text="Historial", width=90, height=32,
+            acciones, text="Editar", width=70, height=28,
             corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
             text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda i=insumo: HistorialMovimientosView(self, i),
-        ).pack(side="left", padx=4)
+            command=lambda g=grupo, o=objeto: self._abrir_form_editar(g, o),
+        ).pack(side="left", padx=3)
 
-        ctk.CTkButton(
-            acciones, text="Editar", width=80, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda i=insumo: self._abrir_form_editar(i),
-        ).pack(side="left", padx=4)
+        if self._puede_eliminarse(grupo, objeto):
+            ctk.CTkButton(
+                acciones, text="Eliminar", width=80, height=28,
+                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.ERROR,
+                text_color=theme.TEXT_ON_ACCENT, hover_color=theme.PINK_HOVER,
+                command=lambda g=grupo, o=objeto: self._confirmar_eliminar(g, o),
+            ).pack(side="left", padx=3)
+        else:
+            ctk.CTkButton(
+                acciones, text=("Desactivar" if objeto.activo else "Activar"), width=90, height=28,
+                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
+                text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+                command=lambda g=grupo, o=objeto: self._toggle_activo(g, o),
+            ).pack(side="left", padx=3)
 
-        ctk.CTkButton(
-            acciones, text=("Desactivar" if insumo.activo else "Activar"), width=100, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda i=insumo: self._toggle_activo(i),
-        ).pack(side="left", padx=4)
+    def _detalle_partes(self, grupo, objeto):
+        """[(texto, es_alerta)] con el detalle de una fila según su tipo."""
+        partes = []
+        if grupo == "producto_base":
+            partes.append((f"Precio base: ${objeto.precio_base:.2f}", False))
+        elif grupo == "bebida":
+            partes.append((f"${objeto.precio:.2f}", False))
+            partes.append((f"Stock: {objeto.stock_actual:g} (mínimo {objeto.stock_minimo:g})", objeto.bajo_stock_minimo))
+        else:  # ingrediente, extra, desechable -> Insumo
+            if grupo == "ingrediente":
+                partes.append((f"+${objeto.precio_extra:.2f}", False))
+                etiqueta_aplica = {"crepa": "Crepa", "waffle": "Waffle", "ambos": "Crepa y Waffle"}[objeto.aplica_a]
+                partes.append((etiqueta_aplica, False))
+                if objeto.categoria_armado:
+                    partes.append((CATEGORIA_ARMADO_ETIQUETAS[objeto.categoria_armado], False))
+            else:
+                partes.append(("Sin costo extra", False))
+            partes.append((
+                f"Stock: {objeto.stock_actual:g} {objeto.unidad_medida} (mínimo {objeto.stock_minimo:g})",
+                objeto.bajo_stock_minimo,
+            ))
+        if not objeto.activo:
+            partes.append(("Inactiva" if grupo == "bebida" else "Inactivo", False))
+        return partes
 
-    def _toggle_activo(self, insumo):
-        inv.set_activo_insumo(insumo.id, not insumo.activo)
+    def _puede_eliminarse(self, grupo, objeto):
+        if grupo == "producto_base":
+            return inv.producto_base_puede_eliminarse(objeto.id)
+        if grupo == "bebida":
+            return inv.bebida_puede_eliminarse(objeto.id)
+        return inv.insumo_puede_eliminarse(objeto.id)
+
+    def _toggle_activo(self, grupo, objeto):
+        if grupo == "producto_base":
+            inv.set_activo_producto_base(objeto.id, not objeto.activo)
+        elif grupo == "bebida":
+            inv.set_activo_bebida(objeto.id, not objeto.activo)
+        else:
+            inv.set_activo_insumo(objeto.id, not objeto.activo)
         self._refrescar()
 
-    def _abrir_form_nuevo(self):
-        tipos_permitidos = [self.tipo_nuevo] if self.tipo_nuevo else list(self.tipos)
-        FormularioInsumo(self, tipos_permitidos=tipos_permitidos, insumo=None, on_guardado=self._refrescar)
+    def _confirmar_eliminar(self, grupo, objeto):
+        ConfirmarEliminar(self, objeto.nombre, on_confirmar=lambda: self._eliminar(grupo, objeto))
 
-    def _abrir_form_editar(self, insumo):
-        FormularioInsumo(self, tipos_permitidos=[insumo.tipo], insumo=insumo, on_guardado=self._refrescar)
+    def _eliminar(self, grupo, objeto):
+        try:
+            if grupo == "producto_base":
+                inv.eliminar_producto_base(objeto.id)
+            elif grupo == "bebida":
+                inv.eliminar_bebida(objeto.id)
+            else:
+                inv.eliminar_insumo(objeto.id)
+        except inv.ValidationError:
+            pass  # se volvió a usar justo antes de confirmar: se refresca y queda protegido con Desactivar
+        self._refrescar()
 
-    def _abrir_ajuste_stock(self, insumo):
+    def _abrir_form_editar(self, grupo, objeto):
+        if grupo == "producto_base":
+            FormularioProductoBase(self, objeto, on_guardado=self._refrescar)
+        elif grupo == "bebida":
+            FormularioBebida(self, objeto, on_guardado=self._refrescar)
+        else:
+            FormularioInsumo(self, tipos_permitidos=[objeto.tipo], insumo=objeto, on_guardado=self._refrescar)
+
+    def _abrir_ajuste_stock(self, grupo, objeto):
         FormularioAjusteStock(
-            self, insumo, self.current_user, on_guardado=self._refrescar,
-            solo_entrada=not self.puede_editar,
+            self, objeto, self.current_user, on_guardado=self._refrescar,
+            solo_entrada=not self.puede_editar, entidad_tipo="bebida" if grupo == "bebida" else "insumo",
         )
+
+
+class ConfirmarEliminar(ctk.CTkToplevel):
+    def __init__(self, master, nombre, on_confirmar):
+        super().__init__(master)
+        self.on_confirmar = on_confirmar
+        self.title("Eliminar")
+        self.geometry("360x220")
+        self.configure(fg_color=theme.BG_PAGE)
+        self.resizable(False, False)
+        self.grab_set()
+
+        mensaje = (
+            f"¿Eliminar \"{nombre}\" definitivamente?\n\n"
+            "Esta acción no se puede deshacer. Solo se puede hacer porque "
+            "nunca se ha vendido ni tiene movimientos de stock registrados."
+        )
+        ctk.CTkLabel(self, text=mensaje, wraplength=310, justify="left").pack(
+            fill="x", padx=24, pady=(24, 16)
+        )
+
+        botones = ctk.CTkFrame(self, fg_color="transparent")
+        botones.pack(fill="x", padx=24, pady=(0, 24))
+        ctk.CTkButton(
+            botones, text="Cancelar", fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY,
+            hover_color=theme.BG_HOVER, corner_radius=theme.RADIUS_BUTTON, command=self.destroy,
+        ).pack(side="left", expand=True, fill="x", padx=(0, 4))
+        ctk.CTkButton(
+            botones, text="Sí, eliminar", fg_color=theme.ERROR, hover_color=theme.PINK_HOVER,
+            text_color=theme.TEXT_ON_ACCENT, corner_radius=theme.RADIUS_BUTTON,
+            command=self._confirmar,
+        ).pack(side="left", expand=True, fill="x", padx=(4, 0))
+
+    def _confirmar(self):
+        self.destroy()
+        self.on_confirmar()
 
 
 class FormularioInsumo(ctk.CTkToplevel):
@@ -571,124 +698,6 @@ class HistorialMovimientosView(ctk.CTkToplevel):
             ).pack(anchor="w")
 
 
-# ---------------------------------------------------------------------------
-# Bebidas
-# ---------------------------------------------------------------------------
-
-class BebidasPanel(ctk.CTkFrame):
-    def __init__(self, master, current_user=None, puede_editar=True):
-        super().__init__(master, fg_color="transparent")
-        self.current_user = current_user
-        self.puede_editar = puede_editar
-
-        if self.puede_editar:
-            header = ctk.CTkFrame(self, fg_color="transparent")
-            header.pack(fill="x", pady=(12, 12))
-            ctk.CTkButton(
-                header, text="+ Nueva bebida", corner_radius=theme.RADIUS_BUTTON,
-                fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
-                command=self._abrir_form_nuevo,
-            ).pack(side="right")
-
-        self.lista_frame = ctk.CTkScrollableFrame(self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
-        self.lista_frame.pack(fill="both", expand=True, pady=(12, 0) if not self.puede_editar else 0)
-        self._refrescar()
-
-    def _refrescar(self):
-        for widget in self.lista_frame.winfo_children():
-            widget.destroy()
-        for bebida in inv.listar_bebidas():
-            self._fila(bebida)
-
-    def _fila(self, bebida):
-        row = ctk.CTkFrame(self.lista_frame, fg_color="transparent")
-        row.pack(fill="x", pady=8, padx=8)
-
-        info = ctk.CTkFrame(row, fg_color="transparent")
-        info.pack(side="left", fill="x", expand=True)
-        ctk.CTkLabel(
-            info, text=bebida.nombre, anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(anchor="w")
-
-        # El vendedor solo ve el nombre y el botón de Ajustar stock — nada
-        # de precio, cantidades de stock, historial ni acciones de edición
-        # o desactivación (mismo criterio que InsumosPanel._fila_insumo).
-        if not self.puede_editar:
-            acciones = ctk.CTkFrame(row, fg_color="transparent")
-            acciones.pack(side="right")
-            ctk.CTkButton(
-                acciones, text="Ajustar stock", width=120, height=32,
-                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
-                text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
-                command=lambda b=bebida: self._abrir_ajuste_stock(b),
-            ).pack(side="left", padx=4)
-            return
-
-        detalle_partes = [
-            f"${bebida.precio:.2f}",
-            f"Stock: {bebida.stock_actual:g} (mínimo {bebida.stock_minimo:g})",
-        ]
-        if not bebida.activo:
-            detalle_partes.append("Inactiva")
-
-        detalle = ctk.CTkFrame(info, fg_color="transparent")
-        detalle.pack(anchor="w")
-        color_stock = theme.ERROR if bebida.bajo_stock_minimo else theme.TEXT_SECONDARY
-        for i, parte in enumerate(detalle_partes):
-            es_stock = parte.startswith("Stock:")
-            ctk.CTkLabel(
-                detalle, text=parte + ("  ·  " if i < len(detalle_partes) - 1 else ""),
-                text_color=color_stock if es_stock else theme.TEXT_SECONDARY,
-                font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL, "bold" if es_stock and bebida.bajo_stock_minimo else "normal"),
-            ).pack(side="left")
-
-        acciones = ctk.CTkFrame(row, fg_color="transparent")
-        acciones.pack(side="right")
-
-        ctk.CTkButton(
-            acciones, text="Ajustar stock", width=120, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
-            command=lambda b=bebida: self._abrir_ajuste_stock(b),
-        ).pack(side="left", padx=4)
-
-        ctk.CTkButton(
-            acciones, text="Historial", width=90, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda b=bebida: HistorialMovimientosView(self, b, entidad_tipo="bebida"),
-        ).pack(side="left", padx=4)
-
-        ctk.CTkButton(
-            acciones, text="Editar", width=80, height=32, corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda b=bebida: FormularioBebida(self, b, on_guardado=self._refrescar),
-        ).pack(side="left", padx=4)
-        ctk.CTkButton(
-            acciones, text=("Desactivar" if bebida.activo else "Activar"), width=100, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda b=bebida: self._toggle_activo(b),
-        ).pack(side="left", padx=4)
-
-    def _toggle_activo(self, bebida):
-        inv.set_activo_bebida(bebida.id, not bebida.activo)
-        self._refrescar()
-
-    def _abrir_form_nuevo(self):
-        FormularioBebida(self, None, on_guardado=self._refrescar)
-
-    def _abrir_ajuste_stock(self, bebida):
-        FormularioAjusteStock(
-            self, bebida, self.current_user, on_guardado=self._refrescar,
-            solo_entrada=not self.puede_editar, entidad_tipo="bebida",
-        )
-
-
-TIPO_EXTRA_ETIQUETAS = {"boba_perlas": "Boba / Perlas explosivas (varias a la vez)", "pulpa": "Pulpa de fruta (una sola)"}
-TIPO_EXTRA_OPCIONES = ["(Ninguno)"] + list(TIPO_EXTRA_ETIQUETAS.values())
-
-
 class FormularioBebida(ctk.CTkToplevel):
     def __init__(self, master, bebida, on_guardado):
         super().__init__(master)
@@ -764,71 +773,6 @@ class FormularioBebida(ctk.CTkToplevel):
             if label == etiqueta:
                 return valor
         return None
-
-
-# ---------------------------------------------------------------------------
-# Productos base (Crepa, Waffle)
-# ---------------------------------------------------------------------------
-
-class ProductosBasePanel(ctk.CTkFrame):
-    def __init__(self, master, puede_editar=True):
-        super().__init__(master, fg_color="transparent")
-        self.puede_editar = puede_editar
-
-        if self.puede_editar:
-            header = ctk.CTkFrame(self, fg_color="transparent")
-            header.pack(fill="x", pady=(0, 8))
-            ctk.CTkButton(
-                header, text="+ Nuevo producto base", corner_radius=theme.RADIUS_BUTTON,
-                fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
-                command=self._abrir_form_nuevo,
-            ).pack(side="right")
-
-        self.lista_frame = ctk.CTkScrollableFrame(self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
-        self.lista_frame.pack(fill="both", expand=True)
-        self._refrescar()
-
-    def _refrescar(self):
-        for widget in self.lista_frame.winfo_children():
-            widget.destroy()
-        for producto in inv.listar_productos_base():
-            self._fila(producto)
-
-    def _fila(self, producto):
-        row = ctk.CTkFrame(self.lista_frame, fg_color="transparent")
-        row.pack(fill="x", pady=8, padx=8)
-
-        info = ctk.CTkFrame(row, fg_color="transparent")
-        info.pack(side="left", fill="x", expand=True)
-        ctk.CTkLabel(
-            info, text=producto.nombre, anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(anchor="w")
-        subtitulo = f"Precio base: ${producto.precio_base:.2f}" + ("" if producto.activo else "  ·  Inactivo")
-        ctk.CTkLabel(info, text=subtitulo, anchor="w", text_color=theme.TEXT_SECONDARY).pack(anchor="w")
-
-        if not self.puede_editar:
-            return
-
-        acciones = ctk.CTkFrame(row, fg_color="transparent")
-        acciones.pack(side="right")
-        ctk.CTkButton(
-            acciones, text="Editar", width=80, height=32, corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda p=producto: FormularioProductoBase(self, p, on_guardado=self._refrescar),
-        ).pack(side="left", padx=4)
-        ctk.CTkButton(
-            acciones, text=("Desactivar" if producto.activo else "Activar"), width=100, height=32,
-            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-            text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-            command=lambda p=producto: self._toggle_activo(p),
-        ).pack(side="left", padx=4)
-
-    def _toggle_activo(self, producto):
-        inv.set_activo_producto_base(producto.id, not producto.activo)
-        self._refrescar()
-
-    def _abrir_form_nuevo(self):
-        FormularioProductoBase(self, None, on_guardado=self._refrescar)
 
 
 class FormularioProductoBase(ctk.CTkToplevel):
