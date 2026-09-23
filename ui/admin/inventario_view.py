@@ -34,6 +34,17 @@ GRUPO_ETIQUETAS = {
 }
 GRUPOS_FILTRO = ["Todos"] + list(GRUPO_ETIQUETAS.values())
 
+# CTkOptionMenu por defecto usa el azul/gris del tema base de customtkinter
+# (no la paleta rosa de Cuillas) y un text_color pensado para modo oscuro,
+# lo que lo deja casi ilegible sobre nuestros fondos claros — se fuerzan
+# aquí los mismos colores que ya usa el resto de la app.
+ESTILO_OPTION_MENU = dict(
+    fg_color=theme.BG_INPUT, text_color=theme.TEXT_PRIMARY,
+    button_color=theme.BG_INPUT, button_hover_color=theme.BG_HOVER,
+    dropdown_fg_color=theme.BG_CARD, dropdown_text_color=theme.TEXT_PRIMARY,
+    dropdown_hover_color=theme.BG_HOVER,
+)
+
 
 class InventarioView(ctk.CTkFrame):
     def __init__(self, master, current_user, puede_editar=None):
@@ -71,7 +82,7 @@ class InventarioView(ctk.CTkFrame):
             else [g for g in GRUPOS_FILTRO if g != GRUPO_ETIQUETAS["producto_base"]]
         )
         self.option_grupo = ctk.CTkOptionMenu(
-            barra, values=grupos_disponibles, fg_color=theme.BG_INPUT,
+            barra, values=grupos_disponibles, **ESTILO_OPTION_MENU,
             command=lambda _v: self._on_filtro_cambiado(),
         )
         self.option_grupo.set("Todos")
@@ -235,8 +246,8 @@ class InventarioView(ctk.CTkFrame):
         if self._puede_eliminarse(grupo, objeto):
             ctk.CTkButton(
                 acciones, text="Eliminar", width=80, height=28,
-                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.ERROR,
-                text_color=theme.TEXT_ON_ACCENT, hover_color=theme.PINK_HOVER,
+                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
+                text_color=theme.ERROR, hover_color=theme.BG_HOVER,
                 command=lambda g=grupo, o=objeto: self._confirmar_eliminar(g, o),
             ).pack(side="left", padx=3)
         else:
@@ -387,7 +398,7 @@ class FormularioInsumo(ctk.CTkToplevel):
         if mostrar_tipo:
             ctk.CTkLabel(self, text="Tipo", anchor="w").pack(fill="x", **pad)
             valores = [self.TIPO_ETIQUETAS[t] for t in self.tipos_permitidos]
-            self.option_tipo = ctk.CTkOptionMenu(self, values=valores, fg_color=theme.BG_INPUT)
+            self.option_tipo = ctk.CTkOptionMenu(self, values=valores, **ESTILO_OPTION_MENU)
             self.option_tipo.pack(fill="x", pady=(0, 12), **pad)
         else:
             self.option_tipo = None
@@ -397,7 +408,7 @@ class FormularioInsumo(ctk.CTkToplevel):
 
         if "ingrediente" in self.tipos_permitidos:
             ctk.CTkLabel(self, text="Aplica a", anchor="w").pack(fill="x", **pad)
-            self.option_aplica_a = ctk.CTkOptionMenu(self, values=self.APLICA_A_OPCIONES, fg_color=theme.BG_INPUT)
+            self.option_aplica_a = ctk.CTkOptionMenu(self, values=self.APLICA_A_OPCIONES, **ESTILO_OPTION_MENU)
             self.option_aplica_a.pack(fill="x", pady=(0, 12), **pad)
             if self.es_edicion:
                 self.option_aplica_a.set(self.insumo.aplica_a)
@@ -412,7 +423,7 @@ class FormularioInsumo(ctk.CTkToplevel):
                 self, text="Categoría en el armador de Crepa/Waffle (opcional)", anchor="w",
             ).pack(fill="x", **pad)
             self.option_categoria_armado = ctk.CTkOptionMenu(
-                self, values=CATEGORIA_ARMADO_OPCIONES, fg_color=theme.BG_INPUT,
+                self, values=CATEGORIA_ARMADO_OPCIONES, **ESTILO_OPTION_MENU,
             )
             self.option_categoria_armado.pack(fill="x", pady=(0, 12), **pad)
             if self.es_edicion and self.insumo.categoria_armado:
@@ -535,7 +546,7 @@ class FormularioAjusteStock(ctk.CTkToplevel):
             ctk.CTkLabel(self, text="Tipo de movimiento", anchor="w").pack(fill="x", **pad)
             self.option_tipo = ctk.CTkOptionMenu(
                 self, values=["Entrada (llegó mercancía)", "Ajuste (corrección de conteo)"],
-                fg_color=theme.BG_INPUT,
+                **ESTILO_OPTION_MENU,
             )
             self.option_tipo.pack(fill="x", pady=(0, 12), **pad)
             ctk.CTkLabel(self, text="Cantidad (usa negativo para restar)", anchor="w").pack(fill="x", **pad)
@@ -724,7 +735,7 @@ class FormularioBebida(ctk.CTkToplevel):
             self.entry_precio.insert(0, str(self.bebida.precio))
 
         ctk.CTkLabel(self, text="Extra que se ofrece al vender (opcional)", anchor="w").pack(fill="x", padx=24)
-        self.option_tipo_extra = ctk.CTkOptionMenu(self, values=TIPO_EXTRA_OPCIONES, fg_color=theme.BG_INPUT)
+        self.option_tipo_extra = ctk.CTkOptionMenu(self, values=TIPO_EXTRA_OPCIONES, **ESTILO_OPTION_MENU)
         self.option_tipo_extra.pack(fill="x", padx=24, pady=(0, 12))
         if self.bebida and self.bebida.tipo_extra:
             self.option_tipo_extra.set(TIPO_EXTRA_ETIQUETAS[self.bebida.tipo_extra])
