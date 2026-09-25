@@ -19,6 +19,7 @@ from services import reporte_service as rep
 from ui import theme
 from ui.admin.gastos_view import GastosPanel
 from ui.admin.promociones_view import PromocionesPanel
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 TIPOS_EXTRAS_BEBIDA = ["boba", "perla_explosiva"]
 COLUMNAS_KPI = 3
@@ -200,6 +201,8 @@ class DashboardView(ctk.CTkFrame):
 
         PromocionesPanel(self.body).pack(fill="x", pady=(16, 0))
         GastosPanel(self.body, current_user=self.current_user).pack(fill="x", pady=(16, 0))
+
+        habilitar_scroll_tactil(self.body)
 
     def _estado_vacio(self, master):
         card = ctk.CTkFrame(master, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, height=220)

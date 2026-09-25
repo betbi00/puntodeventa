@@ -3,6 +3,7 @@ import customtkinter as ctk
 
 from services import auth_service
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 
 class UsuariosView(ctk.CTkFrame):
@@ -36,6 +37,7 @@ class UsuariosView(ctk.CTkFrame):
             widget.destroy()
         for usuario in auth_service.listar_usuarios():
             self._fila_usuario(usuario)
+        habilitar_scroll_tactil(self.lista_frame)
 
     def _fila_usuario(self, usuario):
         row = ctk.CTkFrame(self.lista_frame, fg_color="transparent")

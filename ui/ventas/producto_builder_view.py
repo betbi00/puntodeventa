@@ -1,27 +1,29 @@
 """Modal para armar una crepa/waffle personalizada, siguiendo el flujo
-guiado del menú oficial: Base (elige una) → Fruta → Complemento opcional
-→ Decoración, en ese orden. Ve el precio total y el desglose en tiempo
+guiado del menú oficial: Base → Fruta → Complemento opcional →
+Decoración, en ese orden. Ve el precio total y el desglose en tiempo
 real antes de agregarlo a la venta.
 
 Los ingredientes se muestran como tarjetas grandes en una cuadrícula (no
 casillas pequeñas) pensadas para pantalla táctil: basta con tocar la
-tarjeta para marcar/desmarcar el ingrediente. En "Base" tocar una tarjeta
-desmarca cualquier otra base ya elegida (solo se puede elegir una).
+tarjeta para marcar/desmarcar el ingrediente. Se puede combinar más de
+uno en cualquier paso (por ejemplo Nutella y queso crema/Philadelphia
+juntos en "Base") — no hay ningún paso de elección única.
 """
 import customtkinter as ctk
 
 from services import inventario_service as inv
 from services import venta_service as vs
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 COLUMNAS = 2
 
-# (categoria_armado, título de la sección, ¿una sola opción a la vez?)
+# (categoria_armado, título de la sección)
 PASOS_ARMADO = [
-    ("base", "1. Elige tu base", True),
-    ("fruta", "2. Elige tu fruta", False),
-    ("complemento", "3. Complemento opcional", False),
-    ("decoracion", "4. Decoración", False),
+    ("base", "1. Elige tu base"),
+    ("fruta", "2. Elige tu fruta"),
+    ("complemento", "3. Complemento opcional"),
+    ("decoracion", "4. Decoración"),
 ]
 
 
@@ -35,7 +37,7 @@ class ProductoBuilderView(ctk.CTkToplevel):
         self.categoria_por_insumo = {}  # insumo_id -> categoria_armado
 
         self.title(f"Armar {producto_base.nombre}")
-        self.geometry("560x760")
+        self._ajustar_geometria(560, 760)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self._build()
@@ -46,6 +48,20 @@ class ProductoBuilderView(ctk.CTkToplevel):
         # aplicada antes de pedir el grab.
         self.update_idletasks()
         self.after(10, self.grab_set)
+
+    def _ajustar_geometria(self, ancho_deseado, alto_deseado):
+        """En pantallas más chicas que el tamaño deseado (por ejemplo un
+        monitor táctil de POS) una ventana de tamaño fijo puede terminar
+        más grande que la pantalla y dejar botones como "Agregar" fuera
+        de la vista, sin forma de moverla ni redimensionarla. Se limita
+        al espacio real disponible y se centra."""
+        ancho_pantalla = self.winfo_screenwidth()
+        alto_pantalla = self.winfo_screenheight()
+        ancho = min(ancho_deseado, ancho_pantalla - 40)
+        alto = min(alto_deseado, alto_pantalla - 80)
+        x = max(0, (ancho_pantalla - ancho) // 2)
+        y = max(0, (alto_pantalla - alto) // 2)
+        self.geometry(f"{ancho}x{alto}+{x}+{y}")
 
     def _build(self):
         ctk.CTkLabel(
@@ -72,7 +88,7 @@ class ProductoBuilderView(ctk.CTkToplevel):
 
         self.hay_base_disponible = bool(por_categoria.get("base"))
 
-        for categoria, titulo, _unica in PASOS_ARMADO:
+        for categoria, titulo in PASOS_ARMADO:
             items = por_categoria.get(categoria)
             if not items:
                 continue  # sin ingredientes en este paso todavía: no se muestra
@@ -111,6 +127,8 @@ class ProductoBuilderView(ctk.CTkToplevel):
         )
         self.btn_agregar.pack(fill="x", padx=24, pady=(0, 24))
 
+        habilitar_scroll_tactil(contenido)
+
     def _tarjeta_ingrediente(self, master, insumo, fila, columna):
         agotado = insumo.stock_actual <= 0
         texto = f"{insumo.nombre}\n+${insumo.precio_extra:.2f}"
@@ -131,12 +149,6 @@ class ProductoBuilderView(ctk.CTkToplevel):
         if insumo.id in self.seleccionados:
             self.seleccionados.discard(insumo.id)
         else:
-            # "Base" es de elección única: marcar una desmarca cualquier
-            # otra base que ya estuviera elegida (comportamiento de radio).
-            if self.categoria_por_insumo.get(insumo.id) == "base":
-                for otro_id, categoria in self.categoria_por_insumo.items():
-                    if categoria == "base":
-                        self.seleccionados.discard(otro_id)
             self.seleccionados.add(insumo.id)
         self._refrescar_estilos()
         self._actualizar_resumen()

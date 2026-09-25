@@ -5,6 +5,7 @@ import customtkinter as ctk
 
 from services import promocion_service as promos
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 MOSTRAR_RECIENTES = 8
 
@@ -48,6 +49,7 @@ class PromocionesPanel(ctk.CTkFrame):
 
         for promo in promociones:
             self._fila_promocion(promo)
+        habilitar_scroll_tactil(self)
 
     def _fila_promocion(self, promo):
         row = ctk.CTkFrame(self.lista_frame, fg_color=theme.BG_PAGE, corner_radius=theme.RADIUS_INPUT)

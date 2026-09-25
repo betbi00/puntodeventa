@@ -11,6 +11,7 @@ from PIL import Image
 
 from services import receta_service as recetas
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 TAMANO_IMAGEN_LISTA = (420, 300)
 ANCHO_COLUMNA_IZQUIERDA = 440
@@ -66,6 +67,7 @@ class RecetasView(ctk.CTkFrame):
 
         for receta in lista:
             self._fila_receta(receta)
+        habilitar_scroll_tactil(self.lista_frame)
 
     def _fila_receta(self, receta):
         card = ctk.CTkFrame(self.lista_frame, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
@@ -249,6 +251,8 @@ class FormularioReceta(ctk.CTkToplevel):
             text_color=theme.TEXT_ON_ACCENT, corner_radius=theme.RADIUS_BUTTON, height=48,
             command=self._guardar,
         ).pack(fill="x", padx=24, pady=(12, 24), side="bottom")
+
+        habilitar_scroll_tactil(contenido)
 
     def _elegir_imagen(self):
         ruta = filedialog.askopenfilename(
