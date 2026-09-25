@@ -219,8 +219,17 @@ class InventarioView(ctk.CTkFrame):
                 font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL, "bold" if es_alerta else "normal"),
             ).pack(side="left")
 
+        # Se usa grid (no pack) con un ancho fijo por columna: así "Editar"
+        # y "Desactivar" siempre caen en la misma posición en todas las
+        # filas, sin importar si esa fila en particular tiene "Ajustar
+        # Stock" (no aplica a producto_base) o "Eliminar" (no aplica si ya
+        # tiene historial) — con pack, cada fila con menos botones
+        # "flotaba" hacia la izquierda de forma distinta y quedaba
+        # desalineada con el resto.
         acciones = ctk.CTkFrame(row, fg_color="transparent")
         acciones.pack(side="right")
+        for columna, ancho in enumerate((168, 118, 148, 128)):
+            acciones.grid_columnconfigure(columna, minsize=ancho)
 
         if grupo != "producto_base":
             ctk.CTkButton(
@@ -229,7 +238,7 @@ class InventarioView(ctk.CTkFrame):
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
                 font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
-            ).pack(side="left", padx=4)
+            ).grid(row=0, column=0, padx=4)
 
         ctk.CTkButton(
             acciones, text="Editar", width=110, height=44,
@@ -237,7 +246,7 @@ class InventarioView(ctk.CTkFrame):
             text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
             command=lambda g=grupo, o=objeto: self._abrir_form_editar(g, o),
-        ).pack(side="left", padx=4)
+        ).grid(row=0, column=1, padx=4)
 
         # Activar/Desactivar y Eliminar son independientes entre sí: un
         # artículo sin historial se puede eliminar de verdad, pero eso no
@@ -250,7 +259,7 @@ class InventarioView(ctk.CTkFrame):
             text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
             command=lambda g=grupo, o=objeto: self._toggle_activo(g, o),
-        ).pack(side="left", padx=4)
+        ).grid(row=0, column=2, padx=4)
 
         if self._puede_eliminarse(grupo, objeto):
             ctk.CTkButton(
@@ -259,7 +268,7 @@ class InventarioView(ctk.CTkFrame):
                 text_color=theme.ERROR, hover_color=theme.BG_HOVER,
                 font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._confirmar_eliminar(g, o),
-            ).pack(side="left", padx=4)
+            ).grid(row=0, column=3, padx=4)
 
     def _detalle_partes(self, grupo, objeto):
         """[(texto, es_alerta)] con el detalle de una fila según su tipo."""
