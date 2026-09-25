@@ -8,6 +8,7 @@ from services import promocion_service as promos
 from services import venta_service as vs
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 from ui.ventas.pago_tarjeta_view import PagoTarjetaDialog
 
 COLUMNAS_USUARIOS = 3
@@ -128,7 +129,7 @@ class CobroDialog(ctk.CTkToplevel):
         self.botones_promocion = {}  # promocion_id -> CTkButton
 
         self.title("Confirmar cobro")
-        self.geometry("420x700")
+        ajustar_geometria(self, 460, 560)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self._build()
@@ -143,9 +144,12 @@ class CobroDialog(ctk.CTkToplevel):
     def _build(self):
         ctk.CTkLabel(
             self, text="Confirmar cobro", font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
-        ).pack(anchor="w", padx=24, pady=(24, 12))
+        ).pack(anchor="w", padx=24, pady=(16, 8))
 
-        resumen = ctk.CTkFrame(self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
+        contenido = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        contenido.pack(fill="both", expand=True)
+
+        resumen = ctk.CTkFrame(contenido, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
         resumen.pack(fill="x", padx=24)
 
         fila_subtotal = ctk.CTkFrame(resumen, fg_color="transparent")
@@ -180,8 +184,8 @@ class CobroDialog(ctk.CTkToplevel):
         )
         self.label_total.pack(side="right")
 
-        ctk.CTkLabel(self, text="Descuentos rápidos", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
-        generales_frame = ctk.CTkFrame(self, fg_color="transparent")
+        ctk.CTkLabel(contenido, text="Descuentos rápidos", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
+        generales_frame = ctk.CTkFrame(contenido, fg_color="transparent")
         generales_frame.pack(fill="x", padx=24)
         for pct in DESCUENTOS_GENERALES:
             ctk.CTkButton(
@@ -192,8 +196,8 @@ class CobroDialog(ctk.CTkToplevel):
 
         promociones_activas = promos.listar_promociones(incluir_inactivas=False)
         if promociones_activas:
-            ctk.CTkLabel(self, text="Promociones", anchor="w").pack(fill="x", padx=24, pady=(12, 4))
-            promos_frame = ctk.CTkFrame(self, fg_color="transparent")
+            ctk.CTkLabel(contenido, text="Promociones", anchor="w").pack(fill="x", padx=24, pady=(12, 4))
+            promos_frame = ctk.CTkFrame(contenido, fg_color="transparent")
             promos_frame.pack(fill="x", padx=24)
             for promo in promociones_activas:
                 boton = ctk.CTkButton(
@@ -205,8 +209,8 @@ class CobroDialog(ctk.CTkToplevel):
                 boton.pack(side="left", padx=(0, 4), pady=2)
                 self.botones_promocion[promo.id] = boton
 
-        ctk.CTkLabel(self, text="¿Quién cobra?", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
-        usuarios_frame = ctk.CTkFrame(self, fg_color="transparent")
+        ctk.CTkLabel(contenido, text="¿Quién cobra?", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
+        usuarios_frame = ctk.CTkFrame(contenido, fg_color="transparent")
         usuarios_frame.pack(fill="x", padx=24)
         for columna in range(COLUMNAS_USUARIOS):
             usuarios_frame.grid_columnconfigure(columna, weight=1)
@@ -221,8 +225,8 @@ class CobroDialog(ctk.CTkToplevel):
             boton.grid(row=fila, column=columna, padx=4, pady=4, sticky="nsew")
             self.botones_usuario[usuario.id] = boton
 
-        ctk.CTkLabel(self, text="Método de pago", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
-        metodo_row = ctk.CTkFrame(self, fg_color="transparent")
+        ctk.CTkLabel(contenido, text="Método de pago", anchor="w").pack(fill="x", padx=24, pady=(16, 4))
+        metodo_row = ctk.CTkFrame(contenido, fg_color="transparent")
         metodo_row.pack(fill="x", padx=24)
         self.btn_efectivo = ctk.CTkButton(
             metodo_row, text="Efectivo", corner_radius=theme.RADIUS_BUTTON,
@@ -236,19 +240,20 @@ class CobroDialog(ctk.CTkToplevel):
         self.btn_tarjeta.pack(side="left", expand=True, fill="x", padx=(4, 0))
 
         self.label_nota = ctk.CTkLabel(
-            self, text="", text_color=theme.TEXT_SECONDARY, wraplength=350, justify="left",
+            contenido, text="", text_color=theme.TEXT_SECONDARY, wraplength=350, justify="left",
         )
         self.label_nota.pack(fill="x", padx=24, pady=(8, 0))
 
-        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR, wraplength=350, justify="left")
-        self.label_error.pack(fill="x", padx=24, pady=(4, 0))
+        self.label_error = ctk.CTkLabel(contenido, text="", text_color=theme.ERROR, wraplength=350, justify="left")
+        self.label_error.pack(fill="x", padx=24, pady=(4, 8))
 
         ctk.CTkButton(
             self, text="Confirmar venta", fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
             text_color=theme.TEXT_ON_ACCENT, corner_radius=theme.RADIUS_BUTTON, height=48,
             command=self._confirmar,
-        ).pack(fill="x", padx=24, pady=(16, 24), side="bottom")
+        ).pack(fill="x", padx=24, pady=(8, 16), side="bottom")
 
+        habilitar_scroll_tactil(contenido)
         self._elegir_usuario(self.current_user.id)
         self._elegir_metodo("efectivo")
 

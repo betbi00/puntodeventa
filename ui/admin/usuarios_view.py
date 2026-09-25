@@ -4,6 +4,7 @@ import customtkinter as ctk
 from services import auth_service
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 
 
 class UsuariosView(ctk.CTkFrame):
@@ -102,7 +103,7 @@ class FormularioUsuario(ctk.CTkToplevel):
     def __init__(self, master, on_guardado):
         super().__init__(master)
         self.title("Nuevo usuario")
-        self.geometry("380x440")
+        ajustar_geometria(self, 380, 440)
         self.configure(fg_color=theme.BG_PAGE)
         self.on_guardado = on_guardado
         self.resizable(False, False)
@@ -154,7 +155,7 @@ class FormularioResetPassword(ctk.CTkToplevel):
     def __init__(self, master, usuario, on_guardado):
         super().__init__(master)
         self.title(f"Resetear contraseña · {usuario.usuario}")
-        self.geometry("360x220")
+        ajustar_geometria(self, 360, 220)
         self.configure(fg_color=theme.BG_PAGE)
         self.usuario = usuario
         self.on_guardado = on_guardado

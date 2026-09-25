@@ -1,7 +1,8 @@
 """Catálogo de bebidas (precio fijo) y modal de extras: qué extra se
 ofrece depende de bebida.tipo_extra — 'boba_perlas' (se puede marcar más
-de uno) o 'pulpa' (una sola pulpa de fruta). Ninguno tiene costo
-adicional, pero sí descuentan su propio inventario."""
+de uno) o 'pulpa' (una sola pulpa de fruta). Normalmente no tienen costo
+adicional, pero si se les puso un precio_extra desde Inventario, se
+suma al total — y siempre descuentan su propio inventario."""
 import customtkinter as ctk
 from PIL import Image
 
@@ -9,6 +10,8 @@ from config import MUNECOS_DIR
 from services import inventario_service as inv
 from services import venta_service as vs
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 
 COLUMNAS = 3
 TAMANO_MUNECO_BEBIDA = 72
@@ -106,7 +109,7 @@ class BebidaExtrasModal(ctk.CTkToplevel):
         self.es_pulpa = bebida.tipo_extra == "pulpa"
 
         self.title(bebida.nombre)
-        self.geometry("380x380")
+        ajustar_geometria(self, 420, 460)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -118,57 +121,81 @@ class BebidaExtrasModal(ctk.CTkToplevel):
         ).pack(anchor="w", padx=24, pady=(24, 0))
         ctk.CTkLabel(
             self, text=f"${self.bebida.precio:.2f} · precio fijo", text_color=theme.TEXT_SECONDARY,
-        ).pack(anchor="w", padx=24, pady=(0, 16))
+        ).pack(anchor="w", padx=24, pady=(0, 12))
+
+        contenido = ctk.CTkScrollableFrame(self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
+        contenido.pack(fill="both", expand=True, padx=24, pady=(0, 12))
 
         if self.es_pulpa:
-            self._build_pulpa()
+            self._build_pulpa(contenido)
         else:
-            self._build_boba_perlas()
+            self._build_boba_perlas(contenido)
 
-        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR, wraplength=330, justify="left")
-        self.label_error.pack(fill="x", padx=24, pady=(12, 0))
+        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR, wraplength=370, justify="left")
+        self.label_error.pack(fill="x", padx=24)
 
-        ctk.CTkButton(
+        self.btn_agregar = ctk.CTkButton(
             self, text=f"+ Agregar ${self.bebida.precio:.2f}", corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
             height=48, command=self._agregar,
-        ).pack(fill="x", padx=24, pady=(16, 24), side="bottom")
+        )
+        self.btn_agregar.pack(fill="x", padx=24, pady=(12, 24), side="bottom")
 
-    def _build_boba_perlas(self):
+        habilitar_scroll_tactil(contenido)
+
+    def _build_boba_perlas(self, master):
         ctk.CTkLabel(
-            self, text="Extras sin costo", anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(anchor="w", padx=24)
+            master, text="Extras disponibles", anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(anchor="w", padx=8, pady=(4, 0))
 
         extras = inv.listar_insumos(tipo=["boba", "perla_explosiva"], incluir_inactivos=False)
         for insumo in extras:
             agotado = insumo.stock_actual <= 0
-            texto = insumo.nombre + ("  (agotado)" if agotado else "")
+            texto = insumo.nombre
+            if insumo.precio_extra:
+                texto += f"  (+${insumo.precio_extra:.2f})"
+            if agotado:
+                texto += "  (agotado)"
             checkbox = ctk.CTkCheckBox(
-                self, text=texto, state="disabled" if agotado else "normal",
+                master, text=texto, state="disabled" if agotado else "normal",
                 text_color=theme.TEXT_SECONDARY if agotado else theme.TEXT_PRIMARY,
                 fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
+                command=self._actualizar_boton,
             )
-            checkbox.pack(anchor="w", padx=24, pady=6)
+            checkbox.pack(anchor="w", padx=8, pady=6)
             self.checkboxes[insumo.id] = (checkbox, insumo)
 
-    def _build_pulpa(self):
+    def _build_pulpa(self, master):
         ctk.CTkLabel(
-            self, text="Elige tu pulpa", anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-        ).pack(anchor="w", padx=24)
+            master, text="Elige tu pulpa", anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+        ).pack(anchor="w", padx=8, pady=(4, 0))
 
         pulpas = inv.listar_insumos(tipo="pulpa", incluir_inactivos=False)
         self.opcion_pulpa = ctk.IntVar(value=0)
         for insumo in pulpas:
             agotado = insumo.stock_actual <= 0
-            texto = insumo.nombre + ("  (agotado)" if agotado else "")
+            texto = insumo.nombre
+            if insumo.precio_extra:
+                texto += f"  (+${insumo.precio_extra:.2f})"
+            if agotado:
+                texto += "  (agotado)"
             radio = ctk.CTkRadioButton(
-                self, text=texto, variable=self.opcion_pulpa, value=insumo.id,
+                master, text=texto, variable=self.opcion_pulpa, value=insumo.id,
                 state="disabled" if agotado else "normal",
                 text_color=theme.TEXT_SECONDARY if agotado else theme.TEXT_PRIMARY,
                 fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
+                command=self._actualizar_boton,
             )
-            radio.pack(anchor="w", padx=24, pady=6)
+            radio.pack(anchor="w", padx=8, pady=6)
             self.radios_pulpa[insumo.id] = insumo
+
+    def _actualizar_boton(self):
+        if self.es_pulpa:
+            insumo = self.radios_pulpa.get(self.opcion_pulpa.get())
+            extra = insumo.precio_extra if insumo else 0
+        else:
+            extra = sum(insumo.precio_extra for (cb, insumo) in self.checkboxes.values() if cb.get() == 1)
+        self.btn_agregar.configure(text=f"+ Agregar ${self.bebida.precio + extra:.2f}")
 
     def _agregar(self):
         if self.es_pulpa:

@@ -12,6 +12,7 @@ from PIL import Image
 from services import receta_service as recetas
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 
 TAMANO_IMAGEN_LISTA = (420, 300)
 ANCHO_COLUMNA_IZQUIERDA = 440
@@ -201,7 +202,7 @@ class FormularioReceta(ctk.CTkToplevel):
         self.ruta_imagen_nueva = None
 
         self.title("Editar receta" if receta else "Nueva receta")
-        self.geometry("460x680")
+        ajustar_geometria(self, 460, 680)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -292,7 +293,7 @@ class ConfirmarQuitarReceta(ctk.CTkToplevel):
         self.on_confirmado = on_confirmado
 
         self.title("Quitar receta")
-        self.geometry("360x200")
+        ajustar_geometria(self, 360, 200)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()

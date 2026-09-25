@@ -80,10 +80,12 @@ def armar_producto_base(producto_base_id: int, insumo_ids_seleccionados: list[in
 
 
 def armar_bebida(bebida_id: int, extra_insumo_ids: Optional[list[int]] = None) -> ItemCarrito:
-    """Bebida de precio fijo con extras opcionales que no suman costo pero
-    sí se descuentan de su propio stock. Qué tipo de extra aplica depende
-    de bebida.tipo_extra: 'boba_perlas' permite marcar varios a la vez;
-    'pulpa' es de elección única (una sola pulpa de fruta)."""
+    """Bebida de precio fijo con extras opcionales que se descuentan de su
+    propio stock y suman su propio precio_extra (normalmente $0, salvo
+    que se le haya puesto un precio desde Inventario). Qué tipo de extra
+    aplica depende de bebida.tipo_extra: 'boba_perlas' permite marcar
+    varios a la vez; 'pulpa' es de elección única (una sola pulpa de
+    fruta)."""
     bebida = bebida_model.get_by_id(bebida_id)
     if not bebida or not bebida.activo:
         raise ValidationError("La bebida no existe o no está disponible")
@@ -103,12 +105,14 @@ def armar_bebida(bebida_id: int, extra_insumo_ids: Optional[list[int]] = None) -
             raise ValidationError(f'"{insumo.nombre}" no es un extra válido para bebidas')
         if insumo.stock_actual <= 0:
             raise ValidationError(f'"{insumo.nombre}" está agotado')
-        extras_usados.append(InsumoUsado(insumo.id, insumo.nombre, 0))
+        extras_usados.append(InsumoUsado(insumo.id, insumo.nombre, insumo.precio_extra))
+
+    precio_total = bebida.precio + sum(e.precio_extra for e in extras_usados)
 
     return ItemCarrito(
         tipo_producto="bebida",
         nombre_producto=bebida.nombre,
-        precio_unitario=bebida.precio,
+        precio_unitario=precio_total,
         bebida_id=bebida.id,
         insumos=extras_usados,
     )

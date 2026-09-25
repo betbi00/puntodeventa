@@ -48,10 +48,7 @@ def crear_insumo(
         raise ValidationError(f"'aplica_a' inválido: {aplica_a}")
     if stock_inicial < 0 or stock_minimo < 0:
         raise ValidationError("El stock no puede ser negativo")
-    # La boba y las perlas explosivas nunca tienen costo extra para el cliente
-    if tipo != "ingrediente":
-        precio_extra = 0
-    elif precio_extra < 0:
+    if precio_extra < 0:
         raise ValidationError("El precio extra no puede ser negativo")
     categoria_armado = _validar_categoria_armado(tipo, categoria_armado)
     return insumo_model.crear(
@@ -73,9 +70,7 @@ def actualizar_insumo(
     insumo = insumo_model.get_by_id(insumo_id)
     if not insumo:
         raise ValidationError("El insumo no existe")
-    if insumo.tipo != "ingrediente":
-        precio_extra = 0
-    elif precio_extra < 0:
+    if precio_extra < 0:
         raise ValidationError("El precio extra no puede ser negativo")
     categoria_armado = _validar_categoria_armado(insumo.tipo, categoria_armado)
     insumo_model.actualizar_datos(

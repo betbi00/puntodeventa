@@ -8,6 +8,7 @@ import customtkinter as ctk
 
 from services import mercadopago_service as mp
 from ui import theme
+from ui.components.ventana_emergente import ajustar_geometria
 
 INTERVALO_POLL_MS = 2000
 MAX_INTENTOS = 150  # ~5 minutos, en línea con el expiration_time de la orden
@@ -26,7 +27,7 @@ class PagoTarjetaDialog(ctk.CTkToplevel):
         self._intentos = 0
 
         self.title("Cobro con tarjeta")
-        self.geometry("380x340")
+        ajustar_geometria(self, 380, 340)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self._cancelar)

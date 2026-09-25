@@ -6,6 +6,7 @@ import customtkinter as ctk
 from services import promocion_service as promos
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 
 MOSTRAR_RECIENTES = 8
 
@@ -104,7 +105,7 @@ class FormularioPromocion(ctk.CTkToplevel):
         self.on_guardado = on_guardado
 
         self.title("Editar promoción" if promocion else "Nueva promoción")
-        self.geometry("380x340")
+        ajustar_geometria(self, 380, 340)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()

@@ -10,6 +10,7 @@ import customtkinter as ctk
 
 from services import impresion_service as imp
 from ui import theme
+from ui.components.ventana_emergente import ajustar_geometria
 
 
 class TicketPreviewDialog(ctk.CTkToplevel):
@@ -26,7 +27,7 @@ class TicketPreviewDialog(ctk.CTkToplevel):
 
         titulo = "Vista previa del ticket" if venta_id is None else f"Ticket · Venta #{venta_id}"
         self.title(titulo)
-        self.geometry("760x680" if datos_comanda else "440x680")
+        ajustar_geometria(self, 760 if datos_comanda else 440, 680)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self._build()

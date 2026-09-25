@@ -13,6 +13,7 @@ from models import usuario as usuario_model
 from services import inventario_service as inv
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 
 UMBRAL_CONFIRMACION_PORCENTAJE = 0.5  # pedir confirmación si el ajuste reduce >= 50% del stock
 
@@ -201,7 +202,7 @@ class InventarioView(ctk.CTkFrame):
             acciones = ctk.CTkFrame(row, fg_color="transparent")
             acciones.pack(side="right")
             ctk.CTkButton(
-                acciones, text="Ajustar stock", width=110, height=28,
+                acciones, text="Ajustar Stock", width=110, height=28,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
                 command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
@@ -223,7 +224,7 @@ class InventarioView(ctk.CTkFrame):
 
         if grupo != "producto_base":
             ctk.CTkButton(
-                acciones, text="Ajustar stock", width=110, height=28,
+                acciones, text="Ajustar Stock", width=110, height=28,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
                 command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
@@ -336,7 +337,7 @@ class ConfirmarEliminar(ctk.CTkToplevel):
         super().__init__(master)
         self.on_confirmar = on_confirmar
         self.title("Eliminar")
-        self.geometry("360x220")
+        ajustar_geometria(self, 360, 220)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -381,7 +382,7 @@ class FormularioInsumo(ctk.CTkToplevel):
         self.tipos_permitidos = tipos_permitidos
         self.on_guardado = on_guardado
         self.title("Editar insumo" if self.es_edicion else "Nuevo insumo")
-        self.geometry("400x680")
+        ajustar_geometria(self, 480, 560)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -390,83 +391,89 @@ class FormularioInsumo(ctk.CTkToplevel):
     def _build(self):
         pad = {"padx": 24}
 
-        ctk.CTkLabel(self, text="Nombre", anchor="w").pack(fill="x", pady=(24, 4), **pad)
-        self.entry_nombre = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+        contenido = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        contenido.pack(fill="both", expand=True, pady=(16, 0))
+
+        ctk.CTkLabel(contenido, text="Nombre", anchor="w").pack(fill="x", pady=(8, 4), **pad)
+        self.entry_nombre = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
         self.entry_nombre.pack(fill="x", pady=(0, 12), **pad)
         if self.es_edicion:
             self.entry_nombre.insert(0, self.insumo.nombre)
 
         mostrar_tipo = len(self.tipos_permitidos) > 1
         if mostrar_tipo:
-            ctk.CTkLabel(self, text="Tipo", anchor="w").pack(fill="x", **pad)
+            ctk.CTkLabel(contenido, text="Tipo", anchor="w").pack(fill="x", **pad)
             valores = [self.TIPO_ETIQUETAS[t] for t in self.tipos_permitidos]
-            self.option_tipo = ctk.CTkOptionMenu(self, values=valores, **ESTILO_OPTION_MENU)
+            self.option_tipo = ctk.CTkOptionMenu(contenido, values=valores, **ESTILO_OPTION_MENU)
             self.option_tipo.pack(fill="x", pady=(0, 12), **pad)
         else:
             self.option_tipo = None
 
         self.tipo_fijo = self.tipos_permitidos[0] if not mostrar_tipo else None
-        es_ingrediente = (self.tipo_fijo == "ingrediente") or (self.tipo_fijo is None and "ingrediente" in self.tipos_permitidos)
+
+        # El precio se puede ajustar para cualquier tipo de insumo (antes
+        # solo aparecía para ingredientes) — para poder cobrar, por
+        # ejemplo, un extra de boba/perla o un desechable que hoy es
+        # gratis pero mañana no.
+        ctk.CTkLabel(contenido, text="Precio extra ($)", anchor="w").pack(fill="x", **pad)
+        self.entry_precio = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
+        self.entry_precio.pack(fill="x", pady=(0, 12), **pad)
+        self.entry_precio.insert(0, str(self.insumo.precio_extra) if self.es_edicion else "0")
 
         if "ingrediente" in self.tipos_permitidos:
-            ctk.CTkLabel(self, text="Aplica a", anchor="w").pack(fill="x", **pad)
-            self.option_aplica_a = ctk.CTkOptionMenu(self, values=self.APLICA_A_OPCIONES, **ESTILO_OPTION_MENU)
+            ctk.CTkLabel(contenido, text="Aplica a", anchor="w").pack(fill="x", **pad)
+            self.option_aplica_a = ctk.CTkOptionMenu(contenido, values=self.APLICA_A_OPCIONES, **ESTILO_OPTION_MENU)
             self.option_aplica_a.pack(fill="x", pady=(0, 12), **pad)
             if self.es_edicion:
                 self.option_aplica_a.set(self.insumo.aplica_a)
 
-            ctk.CTkLabel(self, text="Precio extra ($)", anchor="w").pack(fill="x", **pad)
-            self.entry_precio = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
-            self.entry_precio.pack(fill="x", pady=(0, 12), **pad)
-            if self.es_edicion:
-                self.entry_precio.insert(0, str(self.insumo.precio_extra))
-
             ctk.CTkLabel(
-                self, text="Categoría en el armador de Crepa/Waffle (opcional)", anchor="w",
+                contenido, text="Categoría en el armador de Crepa/Waffle (opcional)", anchor="w",
             ).pack(fill="x", **pad)
             self.option_categoria_armado = ctk.CTkOptionMenu(
-                self, values=CATEGORIA_ARMADO_OPCIONES, **ESTILO_OPTION_MENU,
+                contenido, values=CATEGORIA_ARMADO_OPCIONES, **ESTILO_OPTION_MENU,
             )
             self.option_categoria_armado.pack(fill="x", pady=(0, 12), **pad)
             if self.es_edicion and self.insumo.categoria_armado:
                 self.option_categoria_armado.set(CATEGORIA_ARMADO_ETIQUETAS[self.insumo.categoria_armado])
         else:
             self.option_aplica_a = None
-            self.entry_precio = None
             self.option_categoria_armado = None
 
-        ctk.CTkLabel(self, text="Unidad de medida (ej. pza, g, ml, porcion)", anchor="w").pack(fill="x", **pad)
-        self.entry_unidad = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+        ctk.CTkLabel(contenido, text="Unidad de medida (ej. pza, g, ml, porcion)", anchor="w").pack(fill="x", **pad)
+        self.entry_unidad = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
         self.entry_unidad.pack(fill="x", pady=(0, 12), **pad)
         self.entry_unidad.insert(0, self.insumo.unidad_medida if self.es_edicion else "pza")
 
         if not self.es_edicion:
-            ctk.CTkLabel(self, text="Stock inicial", anchor="w").pack(fill="x", **pad)
-            self.entry_stock_inicial = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+            ctk.CTkLabel(contenido, text="Stock inicial", anchor="w").pack(fill="x", **pad)
+            self.entry_stock_inicial = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
             self.entry_stock_inicial.pack(fill="x", pady=(0, 12), **pad)
             self.entry_stock_inicial.insert(0, "0")
         else:
             self.entry_stock_inicial = None
 
-        ctk.CTkLabel(self, text="Stock mínimo (para alerta)", anchor="w").pack(fill="x", **pad)
-        self.entry_stock_minimo = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+        ctk.CTkLabel(contenido, text="Stock mínimo (para alerta)", anchor="w").pack(fill="x", **pad)
+        self.entry_stock_minimo = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
         self.entry_stock_minimo.pack(fill="x", pady=(0, 12), **pad)
         self.entry_stock_minimo.insert(0, str(self.insumo.stock_minimo) if self.es_edicion else "0")
 
-        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR)
+        self.label_error = ctk.CTkLabel(contenido, text="", text_color=theme.ERROR)
         self.label_error.pack(fill="x", **pad)
 
         ctk.CTkButton(
             self, text="Guardar" if self.es_edicion else "Crear insumo",
             fg_color=theme.PINK, hover_color=theme.PINK_HOVER, text_color=theme.TEXT_ON_ACCENT,
             corner_radius=theme.RADIUS_BUTTON, command=self._guardar,
-        ).pack(fill="x", pady=(12, 24), **pad)
+        ).pack(fill="x", padx=24, pady=(12, 16), side="bottom")
+
+        habilitar_scroll_tactil(contenido)
 
     def _guardar(self):
         try:
             nombre = self.entry_nombre.get()
             aplica_a = self.option_aplica_a.get() if self.option_aplica_a else "ambos"
-            precio_extra = float(self.entry_precio.get() or 0) if self.entry_precio else 0
+            precio_extra = float(self.entry_precio.get() or 0)
             unidad = self.entry_unidad.get().strip() or "pza"
             stock_minimo = float(self.entry_stock_minimo.get() or 0)
             categoria_armado = self._categoria_armado_seleccionada()
@@ -522,7 +529,7 @@ class FormularioAjusteStock(ctk.CTkToplevel):
         # — un ajuste requiere comparar contra el stock actual, que no ve.
         self.solo_entrada = solo_entrada
         self.title(f"Ajustar stock · {insumo.nombre}")
-        self.geometry("380x320" if solo_entrada else "380x360")
+        ajustar_geometria(self, 380, 320 if solo_entrada else 360)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -626,7 +633,7 @@ class ConfirmacionAjusteGrande(ctk.CTkToplevel):
         super().__init__(master)
         self.on_confirmar = on_confirmar
         self.title("Confirmar ajuste")
-        self.geometry("360x220")
+        ajustar_geometria(self, 360, 220)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
@@ -663,7 +670,7 @@ class HistorialMovimientosView(ctk.CTkToplevel):
         super().__init__(master)
         self.entidad_tipo = entidad_tipo
         self.title(f"Historial de movimientos · {insumo.nombre}")
-        self.geometry("520x420")
+        ajustar_geometria(self, 520, 420)
         self.configure(fg_color=theme.BG_PAGE)
         self._build(insumo)
 
@@ -719,52 +726,57 @@ class FormularioBebida(ctk.CTkToplevel):
         self.bebida = bebida
         self.on_guardado = on_guardado
         self.title("Editar bebida" if bebida else "Nueva bebida")
-        self.geometry("360x520" if bebida else "360x560")
+        ajustar_geometria(self, 420, 480)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
         self._build()
 
     def _build(self):
-        ctk.CTkLabel(self, text="Nombre", anchor="w").pack(fill="x", padx=24, pady=(24, 4))
-        self.entry_nombre = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+        contenido = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        contenido.pack(fill="both", expand=True, pady=(16, 0))
+
+        ctk.CTkLabel(contenido, text="Nombre", anchor="w").pack(fill="x", padx=24, pady=(8, 4))
+        self.entry_nombre = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
         self.entry_nombre.pack(fill="x", padx=24, pady=(0, 12))
         if self.bebida:
             self.entry_nombre.insert(0, self.bebida.nombre)
 
-        ctk.CTkLabel(self, text="Precio ($)", anchor="w").pack(fill="x", padx=24)
-        self.entry_precio = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+        ctk.CTkLabel(contenido, text="Precio ($)", anchor="w").pack(fill="x", padx=24)
+        self.entry_precio = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
         self.entry_precio.pack(fill="x", padx=24, pady=(0, 12))
         if self.bebida:
             self.entry_precio.insert(0, str(self.bebida.precio))
 
-        ctk.CTkLabel(self, text="Extra que se ofrece al vender (opcional)", anchor="w").pack(fill="x", padx=24)
-        self.option_tipo_extra = ctk.CTkOptionMenu(self, values=TIPO_EXTRA_OPCIONES, **ESTILO_OPTION_MENU)
+        ctk.CTkLabel(contenido, text="Extra que se ofrece al vender (opcional)", anchor="w").pack(fill="x", padx=24)
+        self.option_tipo_extra = ctk.CTkOptionMenu(contenido, values=TIPO_EXTRA_OPCIONES, **ESTILO_OPTION_MENU)
         self.option_tipo_extra.pack(fill="x", padx=24, pady=(0, 12))
         if self.bebida and self.bebida.tipo_extra:
             self.option_tipo_extra.set(TIPO_EXTRA_ETIQUETAS[self.bebida.tipo_extra])
 
         if not self.bebida:
-            ctk.CTkLabel(self, text="Stock inicial", anchor="w").pack(fill="x", padx=24)
-            self.entry_stock_inicial = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+            ctk.CTkLabel(contenido, text="Stock inicial", anchor="w").pack(fill="x", padx=24)
+            self.entry_stock_inicial = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
             self.entry_stock_inicial.pack(fill="x", padx=24, pady=(0, 12))
             self.entry_stock_inicial.insert(0, "0")
         else:
             self.entry_stock_inicial = None
 
-        ctk.CTkLabel(self, text="Stock mínimo (para alerta)", anchor="w").pack(fill="x", padx=24)
-        self.entry_stock_minimo = ctk.CTkEntry(self, fg_color=theme.BG_INPUT, border_width=0)
+        ctk.CTkLabel(contenido, text="Stock mínimo (para alerta)", anchor="w").pack(fill="x", padx=24)
+        self.entry_stock_minimo = ctk.CTkEntry(contenido, fg_color=theme.BG_INPUT, border_width=0)
         self.entry_stock_minimo.pack(fill="x", padx=24, pady=(0, 12))
         self.entry_stock_minimo.insert(0, str(self.bebida.stock_minimo) if self.bebida else "0")
 
-        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR)
+        self.label_error = ctk.CTkLabel(contenido, text="", text_color=theme.ERROR)
         self.label_error.pack(fill="x", padx=24)
 
         ctk.CTkButton(
             self, text="Guardar", fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
             text_color=theme.TEXT_ON_ACCENT, corner_radius=theme.RADIUS_BUTTON,
             command=self._guardar,
-        ).pack(fill="x", padx=24, pady=(12, 24))
+        ).pack(fill="x", padx=24, pady=(12, 16), side="bottom")
+
+        habilitar_scroll_tactil(contenido)
 
     def _guardar(self):
         try:
@@ -796,7 +808,7 @@ class FormularioProductoBase(ctk.CTkToplevel):
         self.producto = producto
         self.on_guardado = on_guardado
         self.title("Editar producto base" if producto else "Nuevo producto base")
-        self.geometry("360x280")
+        ajustar_geometria(self, 360, 280)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self.grab_set()
