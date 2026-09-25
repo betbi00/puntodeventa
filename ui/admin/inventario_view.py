@@ -239,6 +239,19 @@ class InventarioView(ctk.CTkFrame):
             command=lambda g=grupo, o=objeto: self._abrir_form_editar(g, o),
         ).pack(side="left", padx=4)
 
+        # Activar/Desactivar y Eliminar son independientes entre sí: un
+        # artículo sin historial se puede eliminar de verdad, pero eso no
+        # debe quitarle la forma de activarlo/desactivarlo (por ejemplo,
+        # una bebida nueva que todavía no se ha vendido sigue necesitando
+        # poder activarse para poder venderla).
+        ctk.CTkButton(
+            acciones, text=("Desactivar" if objeto.activo else "Activar"), width=140, height=44,
+            corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
+            text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
+            command=lambda g=grupo, o=objeto: self._toggle_activo(g, o),
+        ).pack(side="left", padx=4)
+
         if self._puede_eliminarse(grupo, objeto):
             ctk.CTkButton(
                 acciones, text="Eliminar", width=120, height=44,
@@ -246,14 +259,6 @@ class InventarioView(ctk.CTkFrame):
                 text_color=theme.ERROR, hover_color=theme.BG_HOVER,
                 font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._confirmar_eliminar(g, o),
-            ).pack(side="left", padx=4)
-        else:
-            ctk.CTkButton(
-                acciones, text=("Desactivar" if objeto.activo else "Activar"), width=140, height=44,
-                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-                text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-                font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-                command=lambda g=grupo, o=objeto: self._toggle_activo(g, o),
             ).pack(side="left", padx=4)
 
     def _detalle_partes(self, grupo, objeto):
