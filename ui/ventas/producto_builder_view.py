@@ -21,6 +21,7 @@ from services import inventario_service as inv
 from services import venta_service as vs
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
+from ui.components.ventana_emergente import ajustar_geometria
 
 COLUMNAS = 3
 ANCHO_PANEL_DERECHO = 250
@@ -44,7 +45,7 @@ class ProductoBuilderView(ctk.CTkToplevel):
         self.categoria_por_insumo = {}  # insumo_id -> categoria_armado
 
         self.title(f"Armar {producto_base.nombre}")
-        self._ajustar_geometria(820, 480)
+        ajustar_geometria(self, 820, 480)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
         self._build()
@@ -55,20 +56,6 @@ class ProductoBuilderView(ctk.CTkToplevel):
         # aplicada antes de pedir el grab.
         self.update_idletasks()
         self.after(10, self.grab_set)
-
-    def _ajustar_geometria(self, ancho_deseado, alto_deseado):
-        """En pantallas más chicas que el tamaño deseado (por ejemplo un
-        monitor táctil de POS) una ventana de tamaño fijo puede terminar
-        más grande que la pantalla y dejar botones como "Agregar" fuera
-        de la vista, sin forma de moverla ni redimensionarla (no hay
-        mouse). Se limita al espacio real disponible y se centra."""
-        ancho_pantalla = self.winfo_screenwidth()
-        alto_pantalla = self.winfo_screenheight()
-        ancho = min(ancho_deseado, ancho_pantalla - 40)
-        alto = min(alto_deseado, alto_pantalla - 80)
-        x = max(0, (ancho_pantalla - ancho) // 2)
-        y = max(0, (alto_pantalla - alto) // 2)
-        self.geometry(f"{ancho}x{alto}+{x}+{y}")
 
     def _build(self):
         cuerpo = ctk.CTkFrame(self, fg_color="transparent")
