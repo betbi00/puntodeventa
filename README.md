@@ -28,12 +28,14 @@ pip install -r requirements.txt
 python3 main.py
 ```
 
-La primera vez que se corre, se crea automáticamente la base de datos (`data/pos.db`) con datos de ejemplo, incluyendo dos usuarios para entrar:
+La primera vez que se corre, se crea automáticamente la base de datos (`data/pos.db`) lista para usarse, con dos usuarios para entrar:
 
 | Usuario    | Contraseña   | Rol           |
 |------------|--------------|---------------|
 | `admin`    | `admin123`   | Administrador |
 | `vendedor` | `vendedor123`| Vendedor      |
+
+El inventario (ingredientes, extras de boba/perlas/pulpa, bebidas, desechables) arranca **vacío a propósito** — se captura desde Inventario con los datos reales del negocio. Lo único que ya viene creado son las dos categorías estructurales "Crepa" y "Waffle" (de las que depende la pantalla de ventas) y las recetas de preparación.
 
 ### Probar en Windows con Git + VS Code
 
@@ -76,7 +78,7 @@ Copia `.env.example` a `.env` para configurar Mercado Pago Point (`MP_ACCESS_TOK
 ## Estructura del proyecto
 
 ```
-db/         esquema de la base de datos, migraciones y datos de ejemplo
+db/         esquema de la base de datos, migraciones y arranque inicial (usuarios, recetas, Crepa/Waffle)
 models/     acceso a datos (una clase + funciones CRUD por tabla)
 services/   lógica de negocio (validaciones, reportes, impresión, Mercado Pago)
 ui/         interfaz en CustomTkinter (admin/, ventas/, recetas/, components/)
