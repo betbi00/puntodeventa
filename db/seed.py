@@ -1,4 +1,9 @@
-"""Datos de ejemplo para poder probar la app sin capturar todo a mano."""
+"""Lo mínimo para que la app arranque usable en una instalación nueva:
+un login y las dos categorías estructurales (Crepa, Waffle) de las que
+depende la pantalla de ventas. Todo lo demás — ingredientes, extras de
+boba/perlas/pulpa, bebidas, desechables, precios y cantidades de stock
+— es catálogo real del negocio y lo captura un administrador desde
+Inventario; ya no se inventa nada de eso aquí."""
 import sqlite3
 
 from config import ASSETS_DIR
@@ -19,92 +24,6 @@ def seed_usuarios(conn: sqlite3.Connection) -> None:
         "INSERT INTO usuarios (nombre, usuario, password_hash, rol) VALUES (?, ?, ?, ?)",
         ("Vendedor Demo", "vendedor", hash_password("vendedor123"), "vendedor"),
     )
-
-
-def seed_insumos(conn: sqlite3.Connection) -> None:
-    """Ingredientes de crepa/waffle + boba + perlas explosivas, con stock de
-    ejemplo. Los ingredientes del armador guiado (categoria_armado) siguen
-    el menú oficial: base, fruta, complemento y decoración."""
-    existentes = conn.execute("SELECT COUNT(*) FROM insumos").fetchone()[0]
-    if existentes > 0:
-        return
-
-    # (nombre, aplica_a, categoria_armado, precio_extra, stock, stock_min)
-    ingredientes = [
-        ("Nutella", "ambos", "base", 15.0, 25, 5),
-        ("Philadelphia", "ambos", "base", 10.0, 15, 5),
-        ("Fresa", "ambos", "fruta", 8.0, 20, 5),
-        ("Plátano", "ambos", "fruta", 6.0, 20, 5),
-        ("Durazno", "ambos", "fruta", 0.0, 20, 5),  # precio pendiente de definir
-        ("Lechera", "ambos", "complemento", 8.0, 20, 5),
-        ("Azúcar glass", "ambos", "decoracion", 0.0, 20, 5),  # precio pendiente de definir
-        # Ya no están en el menú oficial, pero se conservan en inventario
-        # (sin categoria_armado: no aparecen en el armador de Crepa/Waffle).
-        ("Cajeta", "ambos", None, 10.0, 20, 5),
-        ("Helado de vainilla", "ambos", None, 18.0, 15, 5),
-        ("Chispas de chocolate", "ambos", None, 7.0, 25, 8),
-        ("Coco rallado", "ambos", None, 6.0, 15, 5),
-        ("Nuez picada", "ambos", None, 12.0, 15, 5),
-    ]
-    for nombre, aplica_a, categoria_armado, precio_extra, stock, stock_min in ingredientes:
-        conn.execute(
-            """INSERT INTO insumos
-               (nombre, tipo, aplica_a, categoria_armado, precio_extra, unidad_medida, stock_actual, stock_minimo)
-               VALUES (?, 'ingrediente', ?, ?, ?, 'porcion', ?, ?)""",
-            (nombre, aplica_a, categoria_armado, precio_extra, stock, stock_min),
-        )
-
-    # Pulpas para el Frappé de agua con pulpa de fruta — tipo='pulpa' (no
-    # 'ingrediente'), es el extra de elección única que se ofrece al
-    # agregar esa bebida al carrito (ver bebidas.tipo_extra).
-    pulpas = ["Pulpa de maracuyá", "Pulpa de mango", "Pulpa de fresa"]
-    for nombre in pulpas:
-        conn.execute(
-            """INSERT INTO insumos (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo)
-               VALUES (?, 'pulpa', 'ambos', 0, 'porcion', 20, 5)""",
-            (nombre,),
-        )
-
-    # (nombre, tipo, stock, stock_min, activo) — las perlas explosivas ya no
-    # están en el menú oficial de Bobas, se siembran desactivadas.
-    extras_bebida = [
-        ("Boba", "boba", 40, 10, 1),
-        ("Perlas explosivas", "perla_explosiva", 25, 8, 0),
-    ]
-    for nombre, tipo, stock, stock_min, activo in extras_bebida:
-        conn.execute(
-            """INSERT INTO insumos (nombre, tipo, aplica_a, precio_extra, unidad_medida, stock_actual, stock_minimo, activo)
-               VALUES (?, ?, 'ambos', 0, 'porcion', ?, ?, ?)""",
-            (nombre, tipo, stock, stock_min, activo),
-        )
-
-
-def seed_bebidas(conn: sqlite3.Connection) -> None:
-    """Bobas y Frappés del menú oficial. Las Bobas ya tienen precio; los
-    Frappés todavía no (se siembran inactivos, con precio de $1.00 como
-    marcador claro de "falta definir", hasta que el negocio los dé de alta
-    con su precio real)."""
-    existentes = conn.execute("SELECT COUNT(*) FROM bebidas").fetchone()[0]
-    if existentes > 0:
-        return
-
-    # (nombre, precio, tipo_extra, stock, stock_min, activo)
-    bebidas = [
-        ("Boba Taro", 65.0, "boba_perlas", 20, 5, 1),
-        ("Boba Matcha", 70.0, "boba_perlas", 20, 5, 1),
-        ("Boba Chai", 1.0, "boba_perlas", 20, 5, 0),
-        ("Frappé Taro", 1.0, "boba_perlas", 20, 5, 0),
-        ("Frappé Matcha", 1.0, "boba_perlas", 20, 5, 0),
-        ("Frappé Chai", 1.0, "boba_perlas", 20, 5, 0),
-        ("Frappé Oreo", 1.0, "boba_perlas", 20, 5, 0),
-        ("Frappé Mazapán", 1.0, "boba_perlas", 20, 5, 0),
-        ("Frappé de agua con pulpa de fruta", 1.0, "pulpa", 20, 5, 0),
-    ]
-    for nombre, precio, tipo_extra, stock, stock_min, activo in bebidas:
-        conn.execute(
-            "INSERT INTO bebidas (nombre, precio, tipo_extra, stock_actual, stock_minimo, activo) VALUES (?, ?, ?, ?, ?, ?)",
-            (nombre, precio, tipo_extra, stock, stock_min, activo),
-        )
 
 
 def seed_productos_base(conn: sqlite3.Connection) -> None:
@@ -176,11 +95,22 @@ def _bebida_existe(conn: sqlite3.Connection, nombre: str) -> bool:
 
 
 def actualizar_menu_oficial(conn: sqlite3.Connection) -> None:
-    """A diferencia de seed_insumos/seed_bebidas (que solo siembran una
-    base de datos vacía), esto ajusta un catálogo que ya tenía datos para
-    que coincida con el menú oficial que dio el negocio — se ejecuta en
-    cada arranque y cada paso valida si ya se aplicó antes, para poder
-    correrse las veces que sea sin duplicar ni repetir nada."""
+    """Ajusta un catálogo de insumos/bebidas que YA tenía datos (de una
+    instalación anterior a esta limpieza) para que coincida con el menú
+    oficial del negocio — renombra, reclasifica y agrega lo que faltaba
+    de esa migración puntual. Se ejecuta en cada arranque y cada paso
+    valida si ya se aplicó antes, para poder correrse las veces que sea
+    sin duplicar ni repetir nada.
+
+    En una instalación nueva (sin insumos ni bebidas todavía) no hay
+    nada que migrar, así que no hace nada: el catálogo real lo captura
+    un administrador desde Inventario, no esta función."""
+    if (
+        conn.execute("SELECT 1 FROM insumos LIMIT 1").fetchone() is None
+        and conn.execute("SELECT 1 FROM bebidas LIMIT 1").fetchone() is None
+    ):
+        return
+
     # --- Insumos: renombrar y clasificar por paso del armado guiado ---
     if _insumo_existe(conn, "Queso crema") and not _insumo_existe(conn, "Philadelphia"):
         conn.execute(
@@ -265,7 +195,5 @@ def actualizar_menu_oficial(conn: sqlite3.Connection) -> None:
 
 def seed_all(conn: sqlite3.Connection) -> None:
     seed_usuarios(conn)
-    seed_insumos(conn)
-    seed_bebidas(conn)
     seed_productos_base(conn)
     seed_recetas(conn)
