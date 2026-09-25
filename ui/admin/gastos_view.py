@@ -7,6 +7,7 @@ import customtkinter as ctk
 
 from services import gasto_service
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 MOSTRAR_RECIENTES = 8
 
@@ -51,6 +52,7 @@ class GastosPanel(ctk.CTkFrame):
 
         for gasto in gastos:
             self._fila_gasto(gasto)
+        habilitar_scroll_tactil(self)
 
     def _fila_gasto(self, gasto):
         row = ctk.CTkFrame(self.lista_frame, fg_color=theme.BG_PAGE, corner_radius=theme.RADIUS_INPUT)

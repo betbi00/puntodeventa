@@ -7,6 +7,7 @@ from services import mercadopago_service as mp
 from services import promocion_service as promos
 from services import venta_service as vs
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 from ui.ventas.pago_tarjeta_view import PagoTarjetaDialog
 
 COLUMNAS_USUARIOS = 3
@@ -68,6 +69,7 @@ class CarritoPanel(ctk.CTkFrame):
             self._fila_item(idx, item)
         self.badge_count.configure(text=str(len(self.carrito.items)))
         self._actualizar_totales()
+        habilitar_scroll_tactil(self.items_frame)
 
     def _fila_item(self, idx, item):
         row = ctk.CTkFrame(self.items_frame, fg_color=theme.BG_PAGE, corner_radius=theme.RADIUS_INPUT)

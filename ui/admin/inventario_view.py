@@ -12,6 +12,7 @@ import customtkinter as ctk
 from models import usuario as usuario_model
 from services import inventario_service as inv
 from ui import theme
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 UMBRAL_CONFIRMACION_PORCENTAJE = 0.5  # pedir confirmación si el ajuste reduce >= 50% del stock
 
@@ -170,6 +171,7 @@ class InventarioView(ctk.CTkFrame):
             return
         for grupo, objeto in items:
             self._fila(grupo, objeto)
+        habilitar_scroll_tactil(self.lista_frame)
 
     def _fila(self, grupo, objeto):
         row = ctk.CTkFrame(self.lista_frame, fg_color="transparent")
@@ -707,6 +709,8 @@ class HistorialMovimientosView(ctk.CTkToplevel):
                 fila, text=detalle, anchor="w", text_color=theme.TEXT_SECONDARY,
                 font=(theme.FONT_FAMILY, theme.FONT_SIZE_SMALL),
             ).pack(anchor="w")
+
+        habilitar_scroll_tactil(lista)
 
 
 class FormularioBebida(ctk.CTkToplevel):

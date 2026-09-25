@@ -13,6 +13,7 @@ from ui.components.ticket_preview_view import TicketPreviewDialog
 from ui.ventas.bebida_view import BebidaCatalogo
 from ui.ventas.carrito_cobro_view import CarritoPanel
 from ui.ventas.producto_builder_view import ProductoBuilderView
+from ui.components.scroll_tactil import habilitar_scroll_tactil
 
 MUNECOS_PRODUCTO_BASE = {"crepa": "crepa.png", "waffle": "waffle.png"}
 TAMANO_MUNECO_PRODUCTO_BASE = 130
@@ -50,6 +51,8 @@ class VentaView(ctk.CTkFrame):
             self, self.carrito, self.current_user, on_venta_completada=self._venta_completada,
         )
         self.carrito_panel.pack(side="right", fill="y")
+
+        habilitar_scroll_tactil(catalogo)
 
     def _fila_productos_base(self, master):
         """Crepa a la izquierda, Waffle a la derecha. Tocar cualquiera abre
