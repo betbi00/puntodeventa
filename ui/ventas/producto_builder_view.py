@@ -3,11 +3,17 @@ guiado del menú oficial: Base → Fruta → Complemento opcional →
 Decoración, en ese orden. Ve el precio total y el desglose en tiempo
 real antes de agregarlo a la venta.
 
+Pensado para pantalla táctil sin mouse: la ventana es apaisada (más
+ancha que alta) en vez de una lista larga que obliga a hacer scroll
+para llegar al botón de agregar — "Agregar" vive en un panel fijo a la
+derecha que siempre se ve completo, sin importar cuántos ingredientes
+haya ni cuánto se haga scroll en la lista de la izquierda.
+
 Los ingredientes se muestran como tarjetas grandes en una cuadrícula (no
-casillas pequeñas) pensadas para pantalla táctil: basta con tocar la
-tarjeta para marcar/desmarcar el ingrediente. Se puede combinar más de
-uno en cualquier paso (por ejemplo Nutella y queso crema/Philadelphia
-juntos en "Base") — no hay ningún paso de elección única.
+casillas pequeñas): basta con tocar la tarjeta para marcar/desmarcar el
+ingrediente. Se puede combinar más de uno en cualquier paso (por
+ejemplo Nutella y queso crema/Philadelphia juntos en "Base") — no hay
+ningún paso de elección única.
 """
 import customtkinter as ctk
 
@@ -16,7 +22,8 @@ from services import venta_service as vs
 from ui import theme
 from ui.components.scroll_tactil import habilitar_scroll_tactil
 
-COLUMNAS = 2
+COLUMNAS = 3
+ANCHO_PANEL_DERECHO = 250
 
 # (categoria_armado, título de la sección)
 PASOS_ARMADO = [
@@ -37,18 +44,24 @@ class ProductoBuilderView(ctk.CTkToplevel):
         self.categoria_por_insumo = {}  # insumo_id -> categoria_armado
 
         self.title(f"Armar {producto_base.nombre}")
-        self._ajustar_geometria(560, 760)
+        self._ajustar_geometria(820, 480)
         self.configure(fg_color=theme.BG_PAGE)
         self.resizable(False, False)
-        self.grab_set()
         self._build()
+        # grab_set() antes de que la ventana termine de dibujarse puede dejarla
+        # con tamaño roto e invisible en macOS: como ya tiene el grab modal,
+        # ningún clic llega a ninguna ventana y la app entera parece
+        # congelada. update_idletasks() fuerza a que la geometría ya esté
+        # aplicada antes de pedir el grab.
+        self.update_idletasks()
+        self.after(10, self.grab_set)
 
     def _ajustar_geometria(self, ancho_deseado, alto_deseado):
         """En pantallas más chicas que el tamaño deseado (por ejemplo un
         monitor táctil de POS) una ventana de tamaño fijo puede terminar
         más grande que la pantalla y dejar botones como "Agregar" fuera
-        de la vista, sin forma de moverla ni redimensionarla. Se limita
-        al espacio real disponible y se centra."""
+        de la vista, sin forma de moverla ni redimensionarla (no hay
+        mouse). Se limita al espacio real disponible y se centra."""
         ancho_pantalla = self.winfo_screenwidth()
         alto_pantalla = self.winfo_screenheight()
         ancho = min(ancho_deseado, ancho_pantalla - 40)
@@ -58,16 +71,19 @@ class ProductoBuilderView(ctk.CTkToplevel):
         self.geometry(f"{ancho}x{alto}+{x}+{y}")
 
     def _build(self):
-        ctk.CTkLabel(
-            self, text=self.producto_base.nombre,
-            font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
-        ).pack(anchor="w", padx=24, pady=(24, 0))
-        ctk.CTkLabel(
-            self, text=f"Base: ${self.producto_base.precio_base:.2f}", text_color=theme.TEXT_SECONDARY,
-        ).pack(anchor="w", padx=24, pady=(0, 12))
+        cuerpo = ctk.CTkFrame(self, fg_color="transparent")
+        cuerpo.pack(fill="both", expand=True, padx=16, pady=16)
 
-        contenido = ctk.CTkScrollableFrame(self, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, height=420)
-        contenido.pack(fill="both", expand=True, padx=24, pady=(0, 16))
+        izquierda = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        izquierda.pack(side="left", fill="both", expand=True, padx=(0, 12))
+
+        ctk.CTkLabel(
+            izquierda, text=self.producto_base.nombre,
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
+        ).pack(anchor="w", pady=(0, 8))
+
+        contenido = ctk.CTkScrollableFrame(izquierda, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD)
+        contenido.pack(fill="both", expand=True)
 
         tipo_basico = self.producto_base.nombre.strip().lower()
         ingredientes = [
@@ -88,7 +104,7 @@ class ProductoBuilderView(ctk.CTkToplevel):
                 continue  # sin ingredientes en este paso todavía: no se muestra
             ctk.CTkLabel(
                 contenido, text=titulo, anchor="w", font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
-            ).pack(anchor="w", padx=8, pady=(12, 4))
+            ).pack(anchor="w", padx=8, pady=(10, 4))
             grid_frame = ctk.CTkFrame(contenido, fg_color="transparent")
             grid_frame.pack(fill="x", padx=8, pady=(0, 4))
             for columna in range(COLUMNAS):
@@ -97,29 +113,43 @@ class ProductoBuilderView(ctk.CTkToplevel):
                 fila, columna = divmod(index, COLUMNAS)
                 self._tarjeta_ingrediente(grid_frame, insumo, fila, columna)
 
-        self.label_resumen = ctk.CTkLabel(
-            self, text="Sin ingredientes agregados", text_color=theme.TEXT_SECONDARY,
-            wraplength=380, justify="left",
+        derecha = ctk.CTkFrame(
+            cuerpo, fg_color=theme.BG_CARD, corner_radius=theme.RADIUS_CARD, width=ANCHO_PANEL_DERECHO,
         )
-        self.label_resumen.pack(anchor="w", padx=24)
+        derecha.pack(side="right", fill="y")
+        derecha.pack_propagate(False)
+
+        ctk.CTkLabel(
+            derecha, text=f"Base: ${self.producto_base.precio_base:.2f}", anchor="w",
+            text_color=theme.TEXT_SECONDARY,
+        ).pack(fill="x", padx=16, pady=(16, 8))
+
+        self.label_resumen = ctk.CTkLabel(
+            derecha, text="Sin ingredientes agregados", text_color=theme.TEXT_SECONDARY,
+            wraplength=ANCHO_PANEL_DERECHO - 32, justify="left", anchor="w",
+        )
+        self.label_resumen.pack(fill="x", padx=16)
 
         self.label_total = ctk.CTkLabel(
-            self, text=f"Total: ${self.producto_base.precio_base:.2f}",
+            derecha, text=f"Total: ${self.producto_base.precio_base:.2f}", anchor="w",
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_TITLE, "bold"),
         )
-        self.label_total.pack(anchor="w", padx=24, pady=(4, 12))
+        self.label_total.pack(fill="x", padx=16, pady=(8, 8))
 
-        self.label_error = ctk.CTkLabel(self, text="", text_color=theme.ERROR, wraplength=380, justify="left")
-        self.label_error.pack(fill="x", padx=24)
+        self.label_error = ctk.CTkLabel(
+            derecha, text="", text_color=theme.ERROR,
+            wraplength=ANCHO_PANEL_DERECHO - 32, justify="left", anchor="w",
+        )
+        self.label_error.pack(fill="x", padx=16)
 
         self.btn_agregar = ctk.CTkButton(
-            self, text=f"Agregar ${self.producto_base.precio_base:.2f}",
+            derecha, text=f"Agregar ${self.producto_base.precio_base:.2f}",
             corner_radius=theme.RADIUS_BUTTON, fg_color=theme.PINK, hover_color=theme.PINK_HOVER,
-            text_color=theme.TEXT_ON_ACCENT, height=52,
+            text_color=theme.TEXT_ON_ACCENT, height=56,
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
             command=self._agregar,
         )
-        self.btn_agregar.pack(fill="x", padx=24, pady=(0, 24))
+        self.btn_agregar.pack(fill="x", padx=16, pady=16, side="bottom")
 
         habilitar_scroll_tactil(contenido)
 
@@ -129,14 +159,14 @@ class ProductoBuilderView(ctk.CTkToplevel):
         if agotado:
             texto += "\nAgotado"
         boton = ctk.CTkButton(
-            master, text=texto, height=84, corner_radius=theme.RADIUS_BUTTON,
+            master, text=texto, height=76, corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.BG_PAGE, text_color=theme.TEXT_SECONDARY if agotado else theme.TEXT_PRIMARY,
             hover_color=theme.BG_PAGE if agotado else theme.BG_HOVER,
             state="disabled" if agotado else "normal",
             font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
             command=lambda i=insumo: self._toggle(i),
         )
-        boton.grid(row=fila, column=columna, padx=8, pady=8, sticky="nsew")
+        boton.grid(row=fila, column=columna, padx=6, pady=6, sticky="nsew")
         self.tarjetas[insumo.id] = (boton, insumo)
 
     def _toggle(self, insumo):
