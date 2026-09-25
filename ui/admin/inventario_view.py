@@ -195,18 +195,18 @@ class InventarioView(ctk.CTkFrame):
         ).pack(padx=8, pady=1)
 
         # El vendedor solo ve nombre + badge + Ajustar stock — nada de
-        # precio, cantidades de stock, historial ni acciones de
-        # edición/eliminación (los productos base ni llegan aquí, ver
-        # _recolectar_items).
+        # precio, cantidades de stock ni acciones de edición/eliminación
+        # (los productos base ni llegan aquí, ver _recolectar_items).
         if not self.puede_editar:
             acciones = ctk.CTkFrame(row, fg_color="transparent")
             acciones.pack(side="right")
             ctk.CTkButton(
-                acciones, text="Ajustar Stock", width=110, height=28,
+                acciones, text="Ajustar Stock", width=160, height=44,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
+                font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
-            ).pack(side="left", padx=3)
+            ).pack(side="left", padx=4)
             return
 
         detalle = ctk.CTkFrame(info, fg_color="transparent")
@@ -224,42 +224,37 @@ class InventarioView(ctk.CTkFrame):
 
         if grupo != "producto_base":
             ctk.CTkButton(
-                acciones, text="Ajustar Stock", width=110, height=28,
+                acciones, text="Ajustar Stock", width=160, height=44,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BLUE_SOFT,
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BLUE,
+                font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._abrir_ajuste_stock(g, o),
-            ).pack(side="left", padx=3)
-
-            ctk.CTkButton(
-                acciones, text="Historial", width=80, height=28,
-                corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
-                text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
-                command=lambda g=grupo, o=objeto: HistorialMovimientosView(
-                    self, o, entidad_tipo="bebida" if g == "bebida" else "insumo",
-                ),
-            ).pack(side="left", padx=3)
+            ).pack(side="left", padx=4)
 
         ctk.CTkButton(
-            acciones, text="Editar", width=70, height=28,
+            acciones, text="Editar", width=110, height=44,
             corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
             text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+            font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
             command=lambda g=grupo, o=objeto: self._abrir_form_editar(g, o),
-        ).pack(side="left", padx=3)
+        ).pack(side="left", padx=4)
 
         if self._puede_eliminarse(grupo, objeto):
             ctk.CTkButton(
-                acciones, text="Eliminar", width=80, height=28,
+                acciones, text="Eliminar", width=120, height=44,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
                 text_color=theme.ERROR, hover_color=theme.BG_HOVER,
+                font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._confirmar_eliminar(g, o),
-            ).pack(side="left", padx=3)
+            ).pack(side="left", padx=4)
         else:
             ctk.CTkButton(
-                acciones, text=("Desactivar" if objeto.activo else "Activar"), width=90, height=28,
+                acciones, text=("Desactivar" if objeto.activo else "Activar"), width=140, height=44,
                 corner_radius=theme.RADIUS_BUTTON, fg_color=theme.BG_INPUT,
                 text_color=theme.TEXT_PRIMARY, hover_color=theme.BG_HOVER,
+                font=(theme.FONT_FAMILY, theme.FONT_SIZE_BODY, "bold"),
                 command=lambda g=grupo, o=objeto: self._toggle_activo(g, o),
-            ).pack(side="left", padx=3)
+            ).pack(side="left", padx=4)
 
     def _detalle_partes(self, grupo, objeto):
         """[(texto, es_alerta)] con el detalle de una fila según su tipo."""
